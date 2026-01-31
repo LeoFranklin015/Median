@@ -3,15 +3,17 @@
 import { useState } from 'react';
 import { ConnectWallet } from "@/components/ConnectWallet";
 import { SendCalls } from "@/components/SendCalls";
+import { SignTypedData } from "@/components/SignTypedData";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/circle-passkey/storage";
-import { Check, Send, Download, Copy } from 'lucide-react';
+import { Check, Send, Download, Copy, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseUnits, type Address } from 'viem';
-import { polygonAmoy } from 'viem/chains';
+import { polygonAmoy, baseSepolia } from 'viem/chains';
 
 export default function Home() {
   const [showSendFunds, setShowSendFunds] = useState(false);
+  const [showSignMessage, setShowSignMessage] = useState(false);
 
   // Read user from localStorage
   const user = getCurrentUser();
@@ -56,7 +58,7 @@ export default function Home() {
                   </CardHeader>
                 </Card>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setShowSendFunds(true)}>
                     <CardContent className="pt-6 flex flex-col items-center text-center">
                       <Send className="w-8 h-8 mb-2 text-primary" />
@@ -69,6 +71,13 @@ export default function Home() {
                       <Download className="w-8 h-8 mb-2 text-primary" />
                       <h3 className="font-semibold">Receive</h3>
                       <p className="text-xs text-muted-foreground mt-1">Copy address</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setShowSignMessage(true)}>
+                    <CardContent className="pt-6 flex flex-col items-center text-center">
+                      <FileSignature className="w-8 h-8 mb-2 text-primary" />
+                      <h3 className="font-semibold">Sign</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Sign message</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -101,6 +110,36 @@ export default function Home() {
                       ],
                     },
                   ]}
+                />
+
+                <SignTypedData
+                  account={user}
+                  open={showSignMessage}
+                  onClose={() => setShowSignMessage(false)}
+                  chain={baseSepolia}
+                  domain={{
+                    name: 'MyDApp',
+                    version: '1',
+                    chainId: baseSepolia.id,
+                    verifyingContract: '0x1234567890123456789012345678901234567890' as Address,
+                  }}
+                  types={{
+                    Permit: [
+                      { name: 'owner', type: 'address' },
+                      { name: 'spender', type: 'address' },
+                      { name: 'value', type: 'uint256' },
+                      { name: 'nonce', type: 'uint256' },
+                      { name: 'deadline', type: 'uint256' },
+                    ],
+                  }}
+                  primaryType="Permit"
+                  message={{
+                    owner: user.smartAccountAddress as Address,
+                    spender: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+                    value: parseUnits('100', 6), // 100 USDC
+                    nonce: 0,
+                    deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+                  }}
                 />
 
                 <Card>

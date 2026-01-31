@@ -195,3 +195,4 @@ export async function getSmartAccountAddress(
   const { smartAccount } = await createSmartAccountFromPasskey(credential, chain);
   return smartAccount.address;
 }
+
