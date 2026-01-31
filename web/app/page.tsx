@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { ConnectWallet } from "@/components/ConnectWallet";
-import { SendTransaction } from "@/components/SendTransaction";
+import { SendCalls } from "@/components/SendCalls";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/circle-passkey/storage";
 import { Check, Send, Download, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseUnits, type Address } from 'viem';
+import { polygonAmoy } from 'viem/chains';
 
 export default function Home() {
   const [showSendFunds, setShowSendFunds] = useState(false);
@@ -71,12 +73,34 @@ export default function Home() {
                   </Card>
                 </div>
 
-                <SendTransaction
+                <SendCalls
                   account={user}
                   open={showSendFunds}
                   onClose={() => setShowSendFunds(false)}
-                  to="0xE08224B2CfaF4f27E2DC7cB3f6B99AcC68Cf06c0"
-                  value="1"
+                  // chain={polygonAmoy} // Optional: fix to specific chain, otherwise user can select
+                  calls={[
+                    {
+                      contractAddress: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC on Base Sepolia
+                      value: '0',
+                      abi: [
+                        {
+                          name: 'transfer',
+                          type: 'function',
+                          stateMutability: 'nonpayable',
+                          inputs: [
+                            { name: 'to', type: 'address' },
+                            { name: 'amount', type: 'uint256' },
+                          ],
+                          outputs: [{ name: '', type: 'bool' }],
+                        },
+                      ] as const,
+                      functionName: 'transfer',
+                      parameters: [
+                        '0xE08224B2CfaF4f27E2DC7cB3f6B99AcC68Cf06c0' as Address,
+                        parseUnits('1', 6), // 1 USDC
+                      ],
+                    },
+                  ]}
                 />
 
                 <Card>

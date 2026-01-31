@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { parseUnits, type Address, type Chain } from 'viem';
+import { encodeAbiParameters, parseUnits, type Address, type Chain } from 'viem';
 import { polygonAmoy, sepolia, baseSepolia, arbitrumSepolia } from 'viem/chains';
 import { encodeTransfer } from '@circle-fin/modular-wallets-core';
 import type { StoredAccount } from '@/lib/circle-passkey/storage';
@@ -179,16 +179,17 @@ export function SendTransaction({ account, open, onClose, to, value }: SendTrans
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-muted-foreground">From</p>
-                  <p className="text-xs font-semibold truncate">@{account.username}</p>
-                  <p className="text-[10px] text-muted-foreground">Wallet 1</p>
+                  <p className="text-xs font-semibold truncate">{`${account.smartAccountAddress.substring(0, 6)}...${account.smartAccountAddress.slice(-4)}`}</p>
                 </div>
 
                 <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
 
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-muted-foreground">To</p>
-                  <p className="text-xs font-semibold">Account 2</p>
-                  <p className="text-[10px] text-muted-foreground truncate">Imported accounts</p>
+                  <p className="text-xs font-semibold font-mono truncate">
+                    {to ? `${to.substring(0, 6)}...${to.slice(-4)}` : ''}
+                  </p>
+
                 </div>
               </div>
             </CardContent>
