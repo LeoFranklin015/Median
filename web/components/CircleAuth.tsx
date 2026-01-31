@@ -14,6 +14,16 @@ import {
   getSmartAccountAddress,
 } from '@/lib/circle-passkey/account';
 import { SendCircleFunds } from './SendCircleFunds';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+import { Loader2, Check, Send, Download, ArrowRight, Sparkles, Lock, Shield } from 'lucide-react';
 
 export function CircleAuth() {
   const [username, setUsername] = useState('');
@@ -62,7 +72,7 @@ export function CircleAuth() {
         username,
         smartAccountAddress,
         credentialId: credential.id,
-        credential: credential, // Store the full credential for reuse
+        credential: credential,
         lastUsed: Date.now(),
       };
 
@@ -70,6 +80,7 @@ export function CircleAuth() {
       setCurrentUser(storedAccount);
       setUser(storedAccount);
       setSavedAccounts(getSavedAccounts());
+      toast.success('Account created successfully!');
     } catch (err) {
       console.error('❌ Sign up error:', err);
       const errorMessage = err instanceof Error
@@ -83,6 +94,7 @@ export function CircleAuth() {
       } else {
         setError(errorMessage);
       }
+      toast.error('Failed to create account');
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +115,7 @@ export function CircleAuth() {
       // Check if we have this account saved
       const existingAccount = savedAccounts.find(a => a.username === username);
 
-      // Use stored credential if available (biometric verification happens on transaction)
+      // Use stored credential if available
       const credential = await loginWithPasskey(
         username,
         existingAccount?.credentialId,
@@ -114,11 +126,9 @@ export function CircleAuth() {
       let smartAccountAddress: string;
 
       if (existingAccount) {
-        // Use cached address
         smartAccountAddress = existingAccount.smartAccountAddress;
         console.log('✅ Using cached smart account address');
       } else {
-        // Get smart account address
         console.log('🔍 Getting smart account address...');
         smartAccountAddress = await getSmartAccountAddress(credential);
         console.log('✅ Smart account address:', smartAccountAddress);
@@ -128,7 +138,7 @@ export function CircleAuth() {
         username,
         smartAccountAddress,
         credentialId: credential.id,
-        credential: credential, // Store the fresh credential
+        credential: credential,
         lastUsed: Date.now(),
       };
 
@@ -136,6 +146,7 @@ export function CircleAuth() {
       setCurrentUser(storedAccount);
       setUser(storedAccount);
       setSavedAccounts(getSavedAccounts());
+      toast.success('Signed in successfully!');
     } catch (err) {
       console.error('❌ Sign in error:', err);
       const errorMessage = err instanceof Error
@@ -151,6 +162,7 @@ export function CircleAuth() {
       } else {
         setError(errorMessage);
       }
+      toast.error('Failed to sign in');
     } finally {
       setIsLoading(false);
     }
@@ -163,7 +175,6 @@ export function CircleAuth() {
 
       console.log('🔐 Quick sign in...');
 
-      // Use stored credential (biometric verification happens on transaction)
       const credential = await loginWithPasskey(
         account.username,
         account.credentialId,
@@ -171,7 +182,6 @@ export function CircleAuth() {
       );
       console.log('✅ Using stored credential');
 
-      // Update account with fresh credential
       const updatedAccount: StoredAccount = {
         ...account,
         credential: credential,
@@ -182,6 +192,7 @@ export function CircleAuth() {
       setCurrentUser(updatedAccount);
       setUser(updatedAccount);
       setSavedAccounts(getSavedAccounts());
+      toast.success(`Welcome back, @${account.username}!`);
     } catch (err) {
       console.error('❌ Quick sign in error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
@@ -191,6 +202,7 @@ export function CircleAuth() {
       } else {
         setError(errorMessage);
       }
+      toast.error('Failed to sign in');
     } finally {
       setIsLoading(false);
     }
@@ -201,6 +213,7 @@ export function CircleAuth() {
     setCurrentUser(null);
     setUsername('');
     setShowManualInput(false);
+    toast.info('Signed out successfully');
   };
 
   const getInitials = (name: string) => {
@@ -221,63 +234,65 @@ export function CircleAuth() {
     return colors[index];
   };
 
+  const copyAddress = () => {
+    if (user) {
+      navigator.clipboard.writeText(user.smartAccountAddress);
+      toast.success('Address copied to clipboard!');
+    }
+  };
+
   // If user is authenticated, show dashboard
   if (user) {
     return (
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Welcome back!</h2>
-            <p className="text-sm text-gray-600 mt-1">@{user.username}</p>
+            <h2 className="text-2xl font-bold">Welcome back!</h2>
+            <p className="text-sm text-muted-foreground mt-1">@{user.username}</p>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
+          <Button variant="ghost" onClick={handleSignOut}>
             Sign Out
-          </button>
+          </Button>
         </div>
 
-        <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-lg">✓</span>
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                <Check className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Smart Account Active</CardTitle>
+                <CardDescription>Gasless transactions enabled</CardDescription>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700">Smart Account Active</p>
-              <p className="text-xs text-gray-500">Gasless transactions enabled</p>
+          </CardHeader>
+          <CardContent>
+            <div className="p-3 bg-background rounded-lg">
+              <p className="text-xs font-mono text-muted-foreground break-all">
+                {user.smartAccountAddress}
+              </p>
             </div>
-          </div>
-          <div className="mt-4 p-3 bg-white rounded-lg">
-            <p className="text-xs font-mono text-gray-500 break-all">
-              {user.smartAccountAddress}
-            </p>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => setShowSendFunds(true)}
-            className="p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all"
-          >
-            <div className="text-2xl mb-2">💸</div>
-            <p className="font-medium text-gray-900">Send</p>
-            <p className="text-xs text-gray-500 mt-1">Transfer funds</p>
-          </button>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(user.smartAccountAddress);
-              alert('Address copied to clipboard!');
-            }}
-            className="p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all"
-          >
-            <div className="text-2xl mb-2">📥</div>
-            <p className="font-medium text-gray-900">Receive</p>
-            <p className="text-xs text-gray-500 mt-1">Copy address</p>
-          </button>
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setShowSendFunds(true)}>
+            <CardContent className="pt-6 flex flex-col items-center text-center">
+              <Send className="w-8 h-8 mb-2 text-primary" />
+              <h3 className="font-semibold">Send</h3>
+              <p className="text-xs text-muted-foreground mt-1">Transfer funds</p>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={copyAddress}>
+            <CardContent className="pt-6 flex flex-col items-center text-center">
+              <Download className="w-8 h-8 mb-2 text-primary" />
+              <h3 className="font-semibold">Receive</h3>
+              <p className="text-xs text-muted-foreground mt-1">Copy address</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Send Funds Modal */}
         {showSendFunds && (
           <SendCircleFunds
             account={user}
@@ -285,23 +300,27 @@ export function CircleAuth() {
           />
         )}
 
-        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-sm font-medium text-gray-700 mb-2">Account Features</p>
-          <ul className="space-y-2">
-            <li className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="text-green-500">✓</span>
-              <span>No gas fees on transactions</span>
-            </li>
-            <li className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="text-green-500">✓</span>
-              <span>Biometric authentication</span>
-            </li>
-            <li className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="text-green-500">✓</span>
-              <span>Multi-chain support</span>
-            </li>
-          </ul>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Account Features</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3">
+              <li className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-green-500" />
+                <span>No gas fees on transactions</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-green-500" />
+                <span>Biometric authentication</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-green-500" />
+                <span>Multi-chain support</span>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -310,164 +329,207 @@ export function CircleAuth() {
   return (
     <div className="flex flex-col gap-6">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+        <h2 className="text-3xl font-bold mb-2">
           {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
         </h2>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           {mode === 'signin'
             ? 'Sign in with your passkey'
             : 'Sign up using your device biometrics'}
         </p>
       </div>
 
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-        <button
-          onClick={() => {
-            setMode('signin');
-            setShowManualInput(false);
-            setError(null);
-          }}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-            mode === 'signin'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Sign In
-        </button>
-        <button
-          onClick={() => {
-            setMode('signup');
-            setShowManualInput(true);
-            setError(null);
-          }}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-            mode === 'signup'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Sign Up
-        </button>
-      </div>
+      <Tabs value={mode} onValueChange={(v) => {
+        setMode(v as 'signin' | 'signup');
+        setShowManualInput(v === 'signup');
+        setError(null);
+      }}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="signin">Sign In</TabsTrigger>
+          <TabsTrigger value="signup">Sign Up</TabsTrigger>
+        </TabsList>
 
-      {mode === 'signin' && savedAccounts.length > 0 && !showManualInput ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-700">Your Accounts ({savedAccounts.length})</p>
-            <button
-              onClick={() => setShowManualInput(true)}
-              className="text-sm text-blue-600 hover:text-blue-700"
-            >
-              Use different account
-            </button>
-          </div>
+        <TabsContent value="signin" className="space-y-4 mt-6">
+          {savedAccounts.length > 0 && !showManualInput ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Your Accounts ({savedAccounts.length})</p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setShowManualInput(true)}
+                  className="h-auto p-0"
+                >
+                  Use different account
+                </Button>
+              </div>
 
-          <div className="space-y-3">
-            {savedAccounts.map((account) => (
-              <button
-                key={account.username}
-                onClick={() => handleQuickSignIn(account)}
-                disabled={isLoading}
-                className="w-full p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              <div className="space-y-3">
+                {savedAccounts.map((account) => (
+                  <Card
+                    key={account.username}
+                    className="cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => handleQuickSignIn(account)}
+                  >
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <Avatar className={`w-12 h-12 ${getAvatarColor(account.username)}`}>
+                        <AvatarFallback className="text-white font-bold">
+                          {getInitials(account.username)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">@{account.username}</p>
+                        <p className="text-xs text-muted-foreground font-mono truncate">
+                          {account.smartAccountAddress.substring(0, 10)}...{account.smartAccountAddress.substring(account.smartAccountAddress.length - 8)}
+                        </p>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {isLoading && (
+                <div className="flex items-center justify-center gap-2 text-primary py-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Signing in...</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {savedAccounts.length === 0 && (
+                <Card className="bg-muted/50">
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No saved accounts yet. Sign up to create your first account!
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {savedAccounts.length > 0 && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setShowManualInput(false)}
+                  className="h-auto p-0"
+                >
+                  ← Back to saved accounts
+                </Button>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="signin-username">Username</Label>
+                <Input
+                  id="signin-username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {error && (
+                <Card className="border-destructive bg-destructive/10">
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-destructive">{error}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Button
+                onClick={handleSignIn}
+                disabled={isLoading || !username.trim()}
+                className="w-full"
+                size="lg"
               >
-                <div className={`w-12 h-12 ${getAvatarColor(account.username)} rounded-full flex items-center justify-center text-white font-bold`}>
-                  {getInitials(account.username)}
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="font-medium text-gray-900">@{account.username}</p>
-                  <p className="text-xs text-gray-500 font-mono truncate">
-                    {account.smartAccountAddress.substring(0, 10)}...{account.smartAccountAddress.substring(account.smartAccountAddress.length - 8)}
-                  </p>
-                </div>
-                <div className="text-gray-400">
-                  →
-                </div>
-              </button>
-            ))}
-          </div>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Signing In...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-5 h-5 mr-2" />
+                    Sign In with Passkey
+                  </>
+                )}
+              </Button>
 
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 text-blue-600 py-2">
-              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">Signing in...</span>
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="pt-6">
+                  <div className="flex gap-2">
+                    <Shield className="w-5 h-5 text-primary shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium mb-1">Secure Sign In</p>
+                      <p className="text-xs text-muted-foreground">
+                        Use your device biometrics (Face ID, Touch ID, or Windows Hello) to securely sign in.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {mode === 'signin' && savedAccounts.length === 0 && (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
-              <p className="text-sm text-gray-600">
-                No saved accounts yet. Sign up to create your first account!
-              </p>
-            </div>
-          )}
+        </TabsContent>
 
-          {mode === 'signin' && savedAccounts.length > 0 && (
-            <button
-              onClick={() => setShowManualInput(false)}
-              className="text-sm text-blue-600 hover:text-blue-700 mb-2"
-            >
-              ← Back to saved accounts
-            </button>
-          )}
-
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              Username
-            </label>
-            <input
-              id="username"
+        <TabsContent value="signup" className="space-y-4 mt-6">
+          <div className="space-y-2">
+            <Label htmlFor="signup-username">Username</Label>
+            <Input
+              id="signup-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              placeholder="Choose a username"
               disabled={isLoading}
             />
           </div>
 
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
+            <Card className="border-destructive bg-destructive/10">
+              <CardContent className="pt-6">
+                <p className="text-sm text-destructive">{error}</p>
+              </CardContent>
+            </Card>
           )}
 
-          <button
-            onClick={mode === 'signin' ? handleSignIn : handleSignUp}
+          <Button
+            onClick={handleSignUp}
             disabled={isLoading || !username.trim()}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+            className="w-full"
+            size="lg"
           >
             {isLoading ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>{mode === 'signin' ? 'Signing In...' : 'Creating Account...'}</span>
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                Creating Account...
               </>
             ) : (
               <>
-                <span className="text-xl">
-                  {mode === 'signin' ? '🔐' : '✨'}
-                </span>
-                <span>
-                  {mode === 'signin' ? 'Sign In with Passkey' : 'Create Account with Passkey'}
-                </span>
+                <Sparkles className="w-5 h-5 mr-2" />
+                Create Account with Passkey
               </>
             )}
-          </button>
+          </Button>
 
-          <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
-            <p className="text-sm text-blue-900 font-medium mb-2">
-              {mode === 'signin' ? '🔒 Secure Sign In' : '✨ Quick Setup'}
-            </p>
-            <p className="text-xs text-blue-700">
-              {mode === 'signin'
-                ? 'Use your device biometrics (Face ID, Touch ID, or Windows Hello) to securely sign in.'
-                : 'Your account will be secured with your device biometrics. No passwords needed!'}
-            </p>
-          </div>
-        </div>
-      )}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="pt-6">
+              <div className="flex gap-2">
+                <Sparkles className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="text-sm font-medium mb-1">Quick Setup</p>
+                  <p className="text-xs text-muted-foreground">
+                    Your account will be secured with your device biometrics. No passwords needed!
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

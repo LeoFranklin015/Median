@@ -8,6 +8,20 @@ import type { StoredAccount } from '@/lib/circle-passkey/storage';
 import {
   createSmartAccountFromPasskey,
 } from '@/lib/circle-passkey/account';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Loader2, Send, Zap, ExternalLink, Check, AlertCircle } from 'lucide-react';
 
 interface SendCircleFundsProps {
   account: StoredAccount;
@@ -93,20 +107,20 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
         return;
       }
 
-      // Step 1: Use stored credential (no re-authentication needed)
+      // Step 1: Use stored credential
       setLoadingStep('Preparing smart account...');
       console.log('✅ Using stored credential');
 
       // Step 2: Create smart account with stored credential
       const { smartAccount, bundlerClient } = await createSmartAccountFromPasskey(
-        account.credential, // Use stored credential directly
+        account.credential,
         selectedChain.chain
       );
       console.log('✅ Smart account created:', smartAccount.address);
 
       // Step 3: Encode the USDC transfer
       setLoadingStep('Preparing transaction...');
-      const amountInSmallestUnit = parseUnits(amount, 6); // USDC has 6 decimals
+      const amountInSmallestUnit = parseUnits(amount, 6);
 
       const transferCall = encodeTransfer(
         recipient as Address,
@@ -119,7 +133,7 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
       setLoadingStep('Sending transaction (gasless)...');
       const userOpHash = await bundlerClient.sendUserOperation({
         calls: [transferCall],
-        paymaster: true, // Enable gas sponsorship
+        paymaster: true,
       });
       console.log('✅ User operation sent:', userOpHash);
 
@@ -134,6 +148,7 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
       setTxHash(receipt.receipt.transactionHash);
       setSuccess(`Successfully sent ${amount} USDC!`);
       setLoadingStep('');
+      toast.success(`Sent ${amount} USDC successfully!`);
 
       // Clear form after success
       setTimeout(() => {
@@ -149,7 +164,6 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
         errorMessage = err.message;
       }
 
-      // Add helpful context
       if (errorMessage.includes('NotAllowedError') || errorMessage.includes('Authentication required')) {
         setError('Transaction cancelled or authentication failed. Please try again.');
       } else if (errorMessage.includes('insufficient funds') || errorMessage.includes('balance')) {
@@ -158,6 +172,7 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
         setError(errorMessage);
       }
 
+      toast.error('Transaction failed');
       setLoadingStep('');
     } finally {
       setIsLoading(false);
@@ -165,74 +180,58 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">Send USDC</h2>
-            <button
-              onClick={onClose}
-              disabled={isLoading}
-              className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-sm text-gray-600 mt-1">Gasless transactions powered by Circle</p>
-        </div>
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Send USDC</DialogTitle>
+          <DialogDescription>
+            Gasless transactions powered by Circle
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="space-y-6">
           {/* Chain Selector */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Select Network
-            </label>
+          <div className="space-y-3">
+            <Label>Select Network</Label>
             <div className="grid grid-cols-2 gap-3">
               {SUPPORTED_CHAINS.map((chainOption) => (
-                <button
+                <Card
                   key={chainOption.chain.id}
-                  onClick={() => setSelectedChain(chainOption)}
-                  disabled={isLoading}
-                  className={`p-4 border-2 rounded-xl transition-all disabled:opacity-50 ${
+                  className={`cursor-pointer transition-all ${
                     selectedChain.chain.id === chainOption.chain.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:border-primary/50'
                   }`}
+                  onClick={() => !isLoading && setSelectedChain(chainOption)}
                 >
-                  <div className="text-2xl mb-1">{chainOption.icon}</div>
-                  <p className="text-sm font-medium text-gray-900">{chainOption.name}</p>
-                </button>
+                  <CardContent className="pt-6 flex flex-col items-center text-center">
+                    <div className="text-2xl mb-1">{chainOption.icon}</div>
+                    <p className="text-sm font-medium">{chainOption.name}</p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </div>
 
           {/* Recipient Address */}
-          <div>
-            <label htmlFor="recipient" className="block text-sm font-medium text-gray-700 mb-2">
-              Recipient Address
-            </label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="recipient">Recipient Address</Label>
+            <Input
               id="recipient"
               type="text"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="0x..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-mono text-sm"
+              className="font-mono text-sm"
               disabled={isLoading}
             />
           </div>
 
           {/* Amount */}
-          <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
-              Amount (USDC)
-            </label>
+          <div className="space-y-2">
+            <Label htmlFor="amount">Amount (USDC)</Label>
             <div className="relative">
-              <input
+              <Input
                 id="amount"
                 type="number"
                 step="0.01"
@@ -240,99 +239,116 @@ export function SendCircleFunds({ account, onClose }: SendCircleFundsProps) {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 disabled={isLoading}
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">
+              <Badge variant="secondary" className="absolute right-3 top-1/2 -translate-y-1/2">
                 USDC
-              </div>
+              </Badge>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-muted-foreground">
               Test USDC on {selectedChain.name}
             </p>
           </div>
 
           {/* Gas Fee Info */}
-          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">⚡</span>
-              <div>
-                <p className="text-sm font-medium text-green-900">Gasless Transaction</p>
-                <p className="text-xs text-green-700">No network fees required</p>
+          <Card className="border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium text-green-900">Gasless Transaction</p>
+                  <p className="text-xs text-green-700">No network fees required</p>
+                </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Loading Step */}
           {isLoading && loadingStep && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-blue-900">{loadingStep}</p>
-              </div>
-            </div>
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  <p className="text-sm text-primary">{loadingStep}</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Error */}
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
+            <Card className="border-destructive bg-destructive/10">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Success */}
           {success && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-medium text-green-900 mb-2">{success}</p>
-              {txHash && (
-                <a
-                  href={`${selectedChain.chain.blockExplorers?.default.url}/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-green-700 hover:text-green-900 underline break-all"
-                >
-                  View on Explorer: {txHash.substring(0, 10)}...{txHash.substring(txHash.length - 8)} →
-                </a>
-              )}
-            </div>
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-6 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Check className="w-5 h-5 text-green-600" />
+                  <p className="text-sm font-medium text-green-900">{success}</p>
+                </div>
+                {txHash && (
+                  <a
+                    href={`${selectedChain.chain.blockExplorers?.default.url}/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900 underline break-all"
+                  >
+                    <span>View on Explorer: {txHash.substring(0, 10)}...{txHash.substring(txHash.length - 8)}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Send Button */}
-          <button
+          <Button
             onClick={handleSend}
             disabled={isLoading || !recipient || !amount}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+            className="w-full"
+            size="lg"
           >
             {isLoading ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Processing...</span>
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                Processing...
               </>
             ) : (
               <>
-                <span>💸</span>
-                <span>Send {amount || '0'} USDC</span>
+                <Send className="w-5 h-5 mr-2" />
+                Send {amount || '0'} USDC
               </>
             )}
-          </button>
+          </Button>
 
           {/* Transaction Details */}
-          <div className="p-4 bg-gray-50 rounded-lg space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Network</span>
-              <span className="font-medium text-gray-900">{selectedChain.name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Token</span>
-              <span className="font-medium text-gray-900">USDC</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Gas Fee</span>
-              <span className="font-medium text-green-600">Free (Sponsored)</span>
-            </div>
-          </div>
+          <Card className="bg-muted/50">
+            <CardContent className="pt-6 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Network</span>
+                <span className="font-medium">{selectedChain.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Token</span>
+                <span className="font-medium">USDC</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Gas Fee</span>
+                <span className="font-medium text-green-600">Free (Sponsored)</span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
