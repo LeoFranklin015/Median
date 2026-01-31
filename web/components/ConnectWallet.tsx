@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   getSavedAccounts,
   getCurrentUser,
@@ -13,9 +13,8 @@ import {
   loginWithPasskey,
   getSmartAccountAddress,
 } from '@/lib/circle-passkey/account';
-import { SendCircleFunds } from './SendCircleFunds';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -34,28 +33,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Loader2, Check, Send, Download, ArrowRight, Sparkles, Lock, Shield, Wallet, LogOut, Plus, Copy, ChevronDown } from 'lucide-react';
+import { Loader2, ArrowRight, Sparkles, Lock, Shield, Wallet, LogOut, Plus, Copy, ChevronDown } from 'lucide-react';
 
 export function ConnectWallet() {
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<StoredAccount | null>(null);
-  const [savedAccounts, setSavedAccounts] = useState<StoredAccount[]>([]);
   const [showManualInput, setShowManualInput] = useState(false);
-  const [showSendFunds, setShowSendFunds] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateAccount, setShowCreateAccount] = useState(false);
 
-  useEffect(() => {
-    const accounts = getSavedAccounts();
-    setSavedAccounts(accounts);
-
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
-  }, []);
+  // Read user from localStorage directly
+  const user = getCurrentUser();
+  const savedAccounts = getSavedAccounts();
 
   const handleSignUp = async () => {
     if (!username.trim()) {
@@ -80,12 +70,12 @@ export function ConnectWallet() {
 
       saveAccount(storedAccount);
       setCurrentUser(storedAccount);
-      setUser(storedAccount);
-      setSavedAccounts(getSavedAccounts());
       toast.success('Account created!');
       setShowAuthModal(false);
       setShowCreateAccount(false);
       setUsername('');
+      // Force re-render by closing and reopening won't be needed since parent will re-render
+      window.location.reload();
     } catch (err) {
       console.error('❌ Sign up error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign up';
@@ -137,11 +127,10 @@ export function ConnectWallet() {
 
       saveAccount(storedAccount);
       setCurrentUser(storedAccount);
-      setUser(storedAccount);
-      setSavedAccounts(getSavedAccounts());
       toast.success('Signed in!');
       setShowAuthModal(false);
       setUsername('');
+      window.location.reload();
     } catch (err) {
       console.error('❌ Sign in error:', err);
       setError('Failed to sign in');
@@ -170,10 +159,9 @@ export function ConnectWallet() {
 
       saveAccount(updatedAccount);
       setCurrentUser(updatedAccount);
-      setUser(updatedAccount);
-      setSavedAccounts(getSavedAccounts());
       toast.success(`Welcome back!`);
       setShowAuthModal(false);
+      window.location.reload();
     } catch (err) {
       console.error('❌ Quick sign in error:', err);
       toast.error('Failed to sign in');
@@ -183,11 +171,11 @@ export function ConnectWallet() {
   };
 
   const handleSignOut = () => {
-    setUser(null);
     setCurrentUser(null);
     setUsername('');
     setShowManualInput(false);
     toast.info('Signed out');
+    window.location.reload();
   };
 
   const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
@@ -208,119 +196,48 @@ export function ConnectWallet() {
     return `${address.substring(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Connected state - compact wallet button
+  // Connected state - compact dropdown button
   if (user) {
     return (
-      <div className="flex flex-col gap-6">
-        {/* Compact wallet button */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">My Wallet</h2>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Avatar className={`w-5 h-5 ${getAvatarColor(user.username)}`}>
-                  <AvatarFallback className="text-white text-xs font-bold">
-                    {getInitials(user.username)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="font-mono text-sm">{formatAddress(user.smartAccountAddress)}</span>
-                <ChevronDown className="w-4 h-4 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="px-2 py-1.5">
-                <p className="text-sm font-medium">@{user.username}</p>
-                <p className="text-xs text-muted-foreground font-mono">{formatAddress(user.smartAccountAddress)}</p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={copyAddress}>
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Address
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
-                <LogOut className="w-4 h-4 mr-2" />
-                Disconnect
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Dashboard */}
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                <Check className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Smart Account Active</CardTitle>
-                <CardDescription>Gasless transactions enabled</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setShowSendFunds(true)}>
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-              <Send className="w-8 h-8 mb-2 text-primary" />
-              <h3 className="font-semibold">Send</h3>
-              <p className="text-xs text-muted-foreground mt-1">Transfer funds</p>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:border-primary transition-colors" onClick={copyAddress}>
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-              <Download className="w-8 h-8 mb-2 text-primary" />
-              <h3 className="font-semibold">Receive</h3>
-              <p className="text-xs text-muted-foreground mt-1">Copy address</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {showSendFunds && <SendCircleFunds account={user} onClose={() => setShowSendFunds(false)} />}
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Account Features</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2 text-xs">
-                <Check className="w-3 h-3 text-green-500" />
-                <span>No gas fees on transactions</span>
-              </li>
-              <li className="flex items-center gap-2 text-xs">
-                <Check className="w-3 h-3 text-green-500" />
-                <span>Biometric authentication</span>
-              </li>
-              <li className="flex items-center gap-2 text-xs">
-                <Check className="w-3 h-3 text-green-500" />
-                <span>Multi-chain support</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="gap-2">
+            <Avatar className={`w-5 h-5 ${getAvatarColor(user.username)}`}>
+              <AvatarFallback className="text-white text-xs font-bold">
+                {getInitials(user.username)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-mono text-sm">{formatAddress(user.smartAccountAddress)}</span>
+            <ChevronDown className="w-4 h-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <div className="px-2 py-1.5">
+            <p className="text-sm font-medium">@{user.username}</p>
+            <p className="text-xs text-muted-foreground font-mono">{formatAddress(user.smartAccountAddress)}</p>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={copyAddress}>
+            <Copy className="w-4 h-4 mr-2" />
+            Copy Address
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+            <LogOut className="w-4 h-4 mr-2" />
+            Disconnect
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
-  // Not connected
+  // Not connected - show connect button
   return (
     <>
-      <div className="flex flex-col items-center gap-6 py-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
-          <p className="text-sm text-muted-foreground">
-            Use biometrics to access your smart wallet
-          </p>
-        </div>
-
-        <Button size="lg" onClick={() => setShowAuthModal(true)} className="gap-2">
-          <Wallet className="w-5 h-5" />
-          Connect Wallet
-        </Button>
-      </div>
+      <Button size="lg" onClick={() => setShowAuthModal(true)} className="gap-2">
+        <Wallet className="w-5 h-5" />
+        Connect Wallet
+      </Button>
 
       {/* Auth Modal */}
       <Dialog open={showAuthModal} onOpenChange={(open) => {
