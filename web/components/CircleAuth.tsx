@@ -10,6 +10,7 @@ import {
 } from '@/lib/circle-passkey/storage';
 import {
   registerWithPasskey,
+  loginWithPasskey,
   getSmartAccountAddress,
 } from '@/lib/circle-passkey/account';
 import { SendCircleFunds } from './SendCircleFunds';
@@ -97,27 +98,102 @@ export function CircleAuth() {
       setIsLoading(true);
       setError(null);
 
-      // Check if we have a saved account for this user
+      console.log('🔐 Starting sign in...');
+
+      // Check if we have this account saved
       const existingAccount = savedAccounts.find(a => a.username === username);
+
+      // Use stored credential if available (biometric verification happens on transaction)
+      const credential = await loginWithPasskey(
+        username,
+        existingAccount?.credentialId,
+        existingAccount?.credential
+      );
+      console.log('✅ Passkey authentication successful');
+
+      let smartAccountAddress: string;
+
       if (existingAccount) {
-        setUser(existingAccount);
-        setCurrentUser(existingAccount);
-        setIsLoading(false);
-        return;
+        // Use cached address
+        smartAccountAddress = existingAccount.smartAccountAddress;
+        console.log('✅ Using cached smart account address');
+      } else {
+        // Get smart account address
+        console.log('🔍 Getting smart account address...');
+        smartAccountAddress = await getSmartAccountAddress(credential);
+        console.log('✅ Smart account address:', smartAccountAddress);
       }
 
-      setError('No account found for this username. Please sign up first.');
+      const storedAccount: StoredAccount = {
+        username,
+        smartAccountAddress,
+        credentialId: credential.id,
+        credential: credential, // Store the fresh credential
+        lastUsed: Date.now(),
+      };
+
+      saveAccount(storedAccount);
+      setCurrentUser(storedAccount);
+      setUser(storedAccount);
+      setSavedAccounts(getSavedAccounts());
     } catch (err) {
       console.error('❌ Sign in error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to sign in');
+      const errorMessage = err instanceof Error
+        ? err.message
+        : 'Failed to sign in. Check console for details.';
+
+      if (errorMessage.includes('NotAllowedError')) {
+        setError('Passkey authentication was cancelled or not allowed. Please try again.');
+      } else if (errorMessage.includes('NotSupportedError')) {
+        setError('Your browser or device does not support passkeys. Try Chrome, Safari, or Edge.');
+      } else if (errorMessage.includes('NotFoundError')) {
+        setError('No passkey found for this username. Did you sign up first?');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleQuickSignIn = async (account: StoredAccount) => {
-    setUser(account);
-    setCurrentUser(account);
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log('🔐 Quick sign in...');
+
+      // Use stored credential (biometric verification happens on transaction)
+      const credential = await loginWithPasskey(
+        account.username,
+        account.credentialId,
+        account.credential
+      );
+      console.log('✅ Using stored credential');
+
+      // Update account with fresh credential
+      const updatedAccount: StoredAccount = {
+        ...account,
+        credential: credential,
+        lastUsed: Date.now(),
+      };
+
+      saveAccount(updatedAccount);
+      setCurrentUser(updatedAccount);
+      setUser(updatedAccount);
+      setSavedAccounts(getSavedAccounts());
+    } catch (err) {
+      console.error('❌ Quick sign in error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
+
+      if (errorMessage.includes('NotAllowedError')) {
+        setError('Passkey authentication was cancelled or not allowed. Please try again.');
+      } else {
+        setError(errorMessage);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSignOut = () => {

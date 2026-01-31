@@ -69,23 +69,75 @@ export async function registerWithPasskey(username: string): Promise<WebAuthnCre
 }
 
 /**
+ * Verify user with biometric authentication using specific credential
+ * This triggers biometric prompt without showing selection screen
+ */
+async function verifyWithBiometric(credentialId: string): Promise<void> {
+  console.log('🔧 Verifying user with biometric...');
+
+  // Create a challenge (random bytes)
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+  // Convert base64url credential ID to buffer
+  const base64url = credentialId.replace(/-/g, '+').replace(/_/g, '/');
+  const binaryString = atob(base64url);
+  const credentialIdBuffer = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    credentialIdBuffer[i] = binaryString.charCodeAt(i);
+  }
+
+  const publicKeyOptions: PublicKeyCredentialRequestOptions = {
+    challenge,
+    rpId: window.location.hostname,
+    allowCredentials: [{
+      id: credentialIdBuffer,
+      type: 'public-key',
+      transports: ['internal', 'hybrid'] as AuthenticatorTransport[],
+    }],
+    userVerification: 'required',
+    timeout: 60000,
+  };
+
+  const assertion = await navigator.credentials.get({
+    publicKey: publicKeyOptions,
+  }) as PublicKeyCredential;
+
+  if (!assertion) {
+    throw new Error('Biometric verification failed');
+  }
+
+  console.log('✅ Biometric verification successful');
+}
+
+/**
  * Login with existing passkey
+ * If stored credential is provided, verifies with biometric then returns it
+ * Otherwise uses Circle's authentication flow
  */
 export async function loginWithPasskey(
   username: string,
-  credentialId?: string
+  credentialId?: string,
+  storedCredential?: WebAuthnCredential
 ): Promise<WebAuthnCredential> {
-  const { clientKey, clientUrl } = getPasskeyConfig();
-
   console.log('🔐 Starting passkey login for:', username);
+  console.log('🔑 Credential ID:', credentialId || 'none provided');
 
   try {
+    // If we have a stored credential, verify with biometric first
+    if (storedCredential && credentialId) {
+      console.log('🔐 Verifying with biometric (no selection screen)...');
+      await verifyWithBiometric(credentialId);
+      console.log('✅ Using verified credential');
+      return storedCredential;
+    }
+
+    // Otherwise, use Circle's authentication flow
+    const { clientKey, clientUrl } = getPasskeyConfig();
     const passkeyTransport = toPasskeyTransport(clientUrl, clientKey);
     const credential = await toWebAuthnCredential({
       transport: passkeyTransport,
       mode: WebAuthnMode.Login,
       username,
-      ...(credentialId && { credentialId }), // Use specific credential if provided
     });
 
     console.log('✅ Passkey login successful');
