@@ -12,8 +12,14 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { toast } from 'sonner';
-import { Loader2, Zap, ExternalLink, Check, AlertCircle, ArrowRight, X, Layers } from 'lucide-react';
+import { Loader2, Zap, ExternalLink, Check, AlertCircle, ArrowRight, X, Layers, ChevronDown } from 'lucide-react';
 
 interface TransactionCall {
   contractAddress: Address;
@@ -75,6 +81,45 @@ export function SendCalls({ account, open, onClose, calls, chain }: SendCallsPro
 
   const formatAddress = (address: string) => {
     return `${address.substring(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Get parameter names and values from ABI
+  const getCallParameters = (call: TransactionCall) => {
+    if (!call.abi || !call.functionName || !call.parameters) {
+      return [];
+    }
+
+    try {
+      // Find the function in the ABI
+      const functionAbi = call.abi.find(
+        (item: any) => item.type === 'function' && item.name === call.functionName
+      );
+
+      if (!functionAbi) {
+        return [];
+      }
+
+      // Map parameter names to values
+      return (functionAbi as any).inputs.map((input: any, idx: number) => ({
+        name: input.name || `param${idx}`,
+        type: input.type,
+        value: call.parameters![idx],
+      }));
+    } catch (error) {
+      console.error('Error parsing parameters:', error);
+      return [];
+    }
+  };
+
+  const formatParameterValue = (value: any, type: string): string => {
+    if (value === null || value === undefined) return 'null';
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'object') return JSON.stringify(value, null, 2);
+    if (typeof value === 'string' && value.startsWith('0x')) {
+      // Format addresses
+      if (value.length === 42) return formatAddress(value);
+    }
+    return String(value);
   };
 
   const encodeCall = (call: TransactionCall) => {
@@ -273,21 +318,73 @@ export function SendCalls({ account, open, onClose, calls, chain }: SendCallsPro
 
             <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {isBatch ? (
-                calls.map((call, idx) => (
-                  <div key={idx} className="px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                        {idx + 1}.
-                      </span>
-                      <span className="text-sm font-mono text-slate-900 dark:text-slate-100">
-                        {call.functionName || 'transfer'}
-                      </span>
-                    </div>
-                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                      {formatAddress(call.contractAddress)}
-                    </span>
-                  </div>
-                ))
+                <Accordion type="single" collapsible className="w-full">
+                  {calls.map((call, idx) => {
+                    const params = getCallParameters(call);
+                    return (
+                      <AccordionItem key={idx} value={`call-${idx}`} className="border-0">
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                          <div className="flex items-center justify-between gap-3 w-full">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                                {idx + 1}.
+                              </span>
+                              <span className="text-sm font-mono text-slate-900 dark:text-slate-100">
+                                {call.functionName || 'transfer'}
+                              </span>
+                            </div>
+                            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                              {formatAddress(call.contractAddress)}
+                            </span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4 pb-3">
+                          <div className="space-y-2 pt-2">
+                            <div className="flex items-center justify-between py-1.5 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                              <span className="text-xs text-slate-500 dark:text-slate-400">Contract</span>
+                              <span className="text-xs font-mono text-slate-700 dark:text-slate-300">
+                                {call.contractAddress}
+                              </span>
+                            </div>
+                            {call.value && BigInt(call.value) > 0 && (
+                              <div className="flex items-center justify-between py-1.5 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                <span className="text-xs text-slate-500 dark:text-slate-400">Value</span>
+                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                  {call.value.toString()}
+                                </span>
+                              </div>
+                            )}
+                            {params.length > 0 && (
+                              <div className="space-y-1.5">
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 px-3 pt-2">
+                                  Parameters:
+                                </p>
+                                {params.map((param:any, paramIdx:any) => (
+                                  <div
+                                    key={paramIdx}
+                                    className="flex items-start justify-between py-1.5 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                        {param.name}
+                                      </span>
+                                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">
+                                        ({param.type})
+                                      </span>
+                                    </div>
+                                    <span className="text-xs font-mono text-slate-600 dark:text-slate-400 ml-2 break-all">
+                                      {formatParameterValue(param.value, param.type)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
               ) : singleCall ? (
                 <>
                   <div className="px-4 py-3 flex items-center justify-between">
@@ -312,6 +409,44 @@ export function SendCalls({ account, open, onClose, calls, chain }: SendCallsPro
                       </span>
                     </div>
                   )}
+
+                  {(() => {
+                    const params = getCallParameters(calls[0]);
+                    if (params.length === 0) return null;
+                    return (
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="params" className="border-0">
+                          <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                              Parameters ({params.length})
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-4 pb-3">
+                            <div className="space-y-1.5 pt-2">
+                              {params.map((param:any, idx:any) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-start justify-between py-2 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                      {param.name}
+                                    </span>
+                                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">
+                                      ({param.type})
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-mono text-slate-600 dark:text-slate-400 ml-2 break-all max-w-[200px]">
+                                    {formatParameterValue(param.value, param.type)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    );
+                  })()}
                 </>
               ) : null}
             </div>

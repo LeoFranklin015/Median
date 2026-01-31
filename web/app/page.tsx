@@ -100,6 +100,27 @@ export default function Home() {
                         parseUnits('1', 6), // 1 USDC
                       ],
                     },
+                    {
+                      contractAddress: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address, // USDC on Base Sepolia
+                      value: '0',
+                      abi: [
+                        {
+                          name: 'transfer',
+                          type: 'function',
+                          stateMutability: 'nonpayable',
+                          inputs: [
+                            { name: 'to', type: 'address' },
+                            { name: 'amount', type: 'uint256' },
+                          ],
+                          outputs: [{ name: '', type: 'bool' }],
+                        },
+                      ] as const,
+                      functionName: 'transfer',
+                      parameters: [
+                        '0xE08224B2CfaF4f27E2DC7cB3f6B99AcC68Cf06c0' as Address,
+                        parseUnits('1', 6), // 1 USDC
+                      ],
+                    },
                   ]}
                 />
 
