@@ -19,7 +19,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -27,19 +26,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Loader2, Check, Send, Download, ArrowRight, Sparkles, Lock, Shield, Wallet } from 'lucide-react';
+import { Loader2, Check, Send, Download, ArrowRight, Sparkles, Lock, Shield, Wallet, LogOut, Plus, Copy, ChevronDown } from 'lucide-react';
 
 export function ConnectWallet() {
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<StoredAccount | null>(null);
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [savedAccounts, setSavedAccounts] = useState<StoredAccount[]>([]);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showSendFunds, setShowSendFunds] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
 
   useEffect(() => {
     const accounts = getSavedAccounts();
@@ -76,8 +82,10 @@ export function ConnectWallet() {
       setCurrentUser(storedAccount);
       setUser(storedAccount);
       setSavedAccounts(getSavedAccounts());
-      toast.success('Account created successfully!');
+      toast.success('Account created!');
       setShowAuthModal(false);
+      setShowCreateAccount(false);
+      setUsername('');
     } catch (err) {
       console.error('❌ Sign up error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign up';
@@ -85,7 +93,7 @@ export function ConnectWallet() {
       if (errorMessage.includes('NotAllowedError')) {
         setError('Passkey creation was cancelled');
       } else if (errorMessage.includes('NotSupportedError')) {
-        setError('Passkeys not supported on this browser');
+        setError('Passkeys not supported');
       } else {
         setError(errorMessage);
       }
@@ -131,12 +139,12 @@ export function ConnectWallet() {
       setCurrentUser(storedAccount);
       setUser(storedAccount);
       setSavedAccounts(getSavedAccounts());
-      toast.success('Signed in successfully!');
+      toast.success('Signed in!');
       setShowAuthModal(false);
+      setUsername('');
     } catch (err) {
       console.error('❌ Sign in error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
-      setError(errorMessage);
+      setError('Failed to sign in');
       toast.error('Failed to sign in');
     } finally {
       setIsLoading(false);
@@ -164,11 +172,10 @@ export function ConnectWallet() {
       setCurrentUser(updatedAccount);
       setUser(updatedAccount);
       setSavedAccounts(getSavedAccounts());
-      toast.success(`Welcome back, @${account.username}!`);
+      toast.success(`Welcome back!`);
       setShowAuthModal(false);
     } catch (err) {
       console.error('❌ Quick sign in error:', err);
-      setError('Failed to sign in');
       toast.error('Failed to sign in');
     } finally {
       setIsLoading(false);
@@ -180,7 +187,7 @@ export function ConnectWallet() {
     setCurrentUser(null);
     setUsername('');
     setShowManualInput(false);
-    toast.info('Signed out successfully');
+    toast.info('Signed out');
   };
 
   const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
@@ -197,27 +204,49 @@ export function ConnectWallet() {
     }
   };
 
-  // Connected state
+  const formatAddress = (address: string) => {
+    return `${address.substring(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Connected state - compact wallet button
   if (user) {
     return (
       <div className="flex flex-col gap-6">
+        {/* Compact wallet button */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className={`w-12 h-12 ${getAvatarColor(user.username)}`}>
-              <AvatarFallback className="text-white font-bold">
-                {getInitials(user.username)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-2xl font-bold">Welcome back!</h2>
-              <p className="text-sm text-muted-foreground">@{user.username}</p>
-            </div>
-          </div>
-          <Button variant="outline" onClick={handleSignOut}>
-            Sign Out
-          </Button>
+          <h2 className="text-lg font-semibold">My Wallet</h2>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Avatar className={`w-5 h-5 ${getAvatarColor(user.username)}`}>
+                  <AvatarFallback className="text-white text-xs font-bold">
+                    {getInitials(user.username)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="font-mono text-sm">{formatAddress(user.smartAccountAddress)}</span>
+                <ChevronDown className="w-4 h-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-medium">@{user.username}</p>
+                <p className="text-xs text-muted-foreground font-mono">{formatAddress(user.smartAccountAddress)}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={copyAddress}>
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Address
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+                <LogOut className="w-4 h-4 mr-2" />
+                Disconnect
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
+        {/* Dashboard */}
         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -230,13 +259,6 @@ export function ConnectWallet() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="p-3 bg-background rounded-lg">
-              <p className="text-xs font-mono text-muted-foreground break-all">
-                {user.smartAccountAddress}
-              </p>
-            </div>
-          </CardContent>
         </Card>
 
         <div className="grid grid-cols-2 gap-4">
@@ -260,20 +282,20 @@ export function ConnectWallet() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Account Features</CardTitle>
+            <CardTitle className="text-sm">Account Features</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-3">
-              <li className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-green-500" />
+            <ul className="space-y-2">
+              <li className="flex items-center gap-2 text-xs">
+                <Check className="w-3 h-3 text-green-500" />
                 <span>No gas fees on transactions</span>
               </li>
-              <li className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-green-500" />
+              <li className="flex items-center gap-2 text-xs">
+                <Check className="w-3 h-3 text-green-500" />
                 <span>Biometric authentication</span>
               </li>
-              <li className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-green-500" />
+              <li className="flex items-center gap-2 text-xs">
+                <Check className="w-3 h-3 text-green-500" />
                 <span>Multi-chain support</span>
               </li>
             </ul>
@@ -283,14 +305,14 @@ export function ConnectWallet() {
     );
   }
 
-  // Not connected - show connect button
+  // Not connected
   return (
     <>
-      <div className="flex flex-col items-center gap-6 py-12">
+      <div className="flex flex-col items-center gap-6 py-8">
         <div className="text-center">
-          <h2 className="text-3xl font-bold mb-2">Connect Your Wallet</h2>
-          <p className="text-muted-foreground">
-            Use your device biometrics to create or access your smart wallet
+          <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
+          <p className="text-sm text-muted-foreground">
+            Use biometrics to access your smart wallet
           </p>
         </div>
 
@@ -298,204 +320,200 @@ export function ConnectWallet() {
           <Wallet className="w-5 h-5" />
           Connect Wallet
         </Button>
-
-        <Card className="border-primary/20 bg-primary/5 max-w-md">
-          <CardContent className="pt-6">
-            <ul className="space-y-3">
-              <li className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-green-500" />
-                <span>No passwords needed</span>
-              </li>
-              <li className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-green-500" />
-                <span>Biometric security</span>
-              </li>
-              <li className="flex items-center gap-2 text-sm">
-                <Check className="w-4 h-4 text-green-500" />
-                <span>Gasless transactions</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Auth Modal */}
-      <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <Dialog open={showAuthModal} onOpenChange={(open) => {
+        setShowAuthModal(open);
+        if (!open) {
+          setShowCreateAccount(false);
+          setShowManualInput(false);
+          setError(null);
+          setUsername('');
+        }
+      }}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{mode === 'signin' ? 'Welcome Back' : 'Create Account'}</DialogTitle>
+            <DialogTitle>{showCreateAccount ? 'Create Account' : 'Sign In'}</DialogTitle>
             <DialogDescription>
-              {mode === 'signin' ? 'Sign in with your passkey' : 'Sign up using your device biometrics'}
+              {showCreateAccount ? 'Create a new account with biometrics' : 'Choose an account or sign in'}
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={mode} onValueChange={(v) => {
-            setMode(v as 'signin' | 'signup');
-            setShowManualInput(v === 'signup');
-            setError(null);
-          }}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+          <div className="space-y-4">
+            {!showCreateAccount ? (
+              <>
+                {/* Account list */}
+                {savedAccounts.length > 0 && !showManualInput ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground">Your Accounts</p>
+                    <div className="space-y-2">
+                      {savedAccounts.map((account) => (
+                        <Card
+                          key={account.username}
+                          className="cursor-pointer hover:border-primary transition-colors"
+                          onClick={() => handleQuickSignIn(account)}
+                        >
+                          <CardContent className="p-3 flex items-center gap-3">
+                            <Avatar className={`w-8 h-8 ${getAvatarColor(account.username)}`}>
+                              <AvatarFallback className="text-white text-xs font-bold">
+                                {getInitials(account.username)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">@{account.username}</p>
+                              <p className="text-xs text-muted-foreground font-mono truncate">
+                                {formatAddress(account.smartAccountAddress)}
+                              </p>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
 
-            <TabsContent value="signin" className="space-y-4 mt-6">
-              {savedAccounts.length > 0 && !showManualInput ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Your Accounts ({savedAccounts.length})</p>
-                    <Button variant="link" size="sm" onClick={() => setShowManualInput(true)} className="h-auto p-0">
+                    {isLoading && (
+                      <div className="flex items-center justify-center gap-2 text-primary py-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-xs">Signing in...</span>
+                      </div>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowManualInput(true)}
+                      className="w-full"
+                    >
                       Use different account
                     </Button>
                   </div>
-
-                  <div className="space-y-3">
-                    {savedAccounts.map((account) => (
-                      <Card key={account.username} className="cursor-pointer hover:border-primary transition-colors" onClick={() => handleQuickSignIn(account)}>
-                        <CardContent className="p-4 flex items-center gap-4">
-                          <Avatar className={`w-12 h-12 ${getAvatarColor(account.username)}`}>
-                            <AvatarFallback className="text-white font-bold">
-                              {getInitials(account.username)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="font-medium">@{account.username}</p>
-                            <p className="text-xs text-muted-foreground font-mono truncate">
-                              {account.smartAccountAddress.substring(0, 10)}...{account.smartAccountAddress.slice(-8)}
-                            </p>
-                          </div>
-                          <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {isLoading && (
-                    <div className="flex items-center justify-center gap-2 text-primary py-2">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span className="text-sm">Signing in...</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {savedAccounts.length === 0 && (
-                    <Card className="bg-muted/50">
-                      <CardContent className="pt-6 text-center">
-                        <p className="text-sm text-muted-foreground">
-                          No saved accounts yet. Sign up to create your first account!
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {savedAccounts.length > 0 && (
-                    <Button variant="link" size="sm" onClick={() => setShowManualInput(false)} className="h-auto p-0">
-                      ← Back to saved accounts
-                    </Button>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-username">Username</Label>
-                    <Input
-                      id="signin-username"
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Enter your username"
-                      disabled={isLoading}
-                    />
-                  </div>
-
-                  {error && (
-                    <Card className="border-destructive bg-destructive/10">
-                      <CardContent className="pt-6">
-                        <p className="text-sm text-destructive">{error}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  <Button onClick={handleSignIn} disabled={isLoading || !username.trim()} className="w-full" size="lg">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        Signing In...
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-5 h-5 mr-2" />
-                        Sign In with Passkey
-                      </>
-                    )}
-                  </Button>
-
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardContent className="pt-6">
-                      <div className="flex gap-2">
-                        <Shield className="w-5 h-5 text-primary shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium mb-1">Secure Sign In</p>
-                          <p className="text-xs text-muted-foreground">
-                            Use your device biometrics to securely sign in.
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="signup" className="space-y-4 mt-6">
-              <div className="space-y-2">
-                <Label htmlFor="signup-username">Username</Label>
-                <Input
-                  id="signup-username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Choose a username"
-                  disabled={isLoading}
-                />
-              </div>
-
-              {error && (
-                <Card className="border-destructive bg-destructive/10">
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-destructive">{error}</p>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Button onClick={handleSignUp} disabled={isLoading || !username.trim()} className="w-full" size="lg">
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    Creating Account...
-                  </>
                 ) : (
                   <>
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    Create Account with Passkey
+                    {/* Manual sign in */}
+                    {savedAccounts.length > 0 && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => setShowManualInput(false)}
+                        className="h-auto p-0 text-xs"
+                      >
+                        ← Back to accounts
+                      </Button>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-username" className="text-xs">Username</Label>
+                      <Input
+                        id="signin-username"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Enter username"
+                        disabled={isLoading}
+                        className="h-9"
+                      />
+                    </div>
+
+                    {error && (
+                      <Card className="border-destructive bg-destructive/10">
+                        <CardContent className="pt-4 pb-3">
+                          <p className="text-xs text-destructive">{error}</p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <Button onClick={handleSignIn} disabled={isLoading || !username.trim()} className="w-full" size="sm">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Signing In...
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4 mr-2" />
+                          Sign In
+                        </>
+                      )}
+                    </Button>
                   </>
                 )}
-              </Button>
 
-              <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="pt-6">
-                  <div className="flex gap-2">
-                    <Sparkles className="w-5 h-5 text-primary shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium mb-1">Quick Setup</p>
+                {/* Create account button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCreateAccount(true)}
+                  className="w-full gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create New Account
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* Create account form */}
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => {
+                    setShowCreateAccount(false);
+                    setError(null);
+                    setUsername('');
+                  }}
+                  className="h-auto p-0 text-xs"
+                >
+                  ← Back
+                </Button>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-username" className="text-xs">Choose Username</Label>
+                  <Input
+                    id="signup-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter username"
+                    disabled={isLoading}
+                    className="h-9"
+                  />
+                </div>
+
+                {error && (
+                  <Card className="border-destructive bg-destructive/10">
+                    <CardContent className="pt-4 pb-3">
+                      <p className="text-xs text-destructive">{error}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Button onClick={handleSignUp} disabled={isLoading || !username.trim()} className="w-full" size="sm">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Create Account
+                    </>
+                  )}
+                </Button>
+
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="flex gap-2">
+                      <Shield className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                       <p className="text-xs text-muted-foreground">
-                        Your account will be secured with your device biometrics. No passwords needed!
+                        Secured with your device biometrics. No passwords needed!
                       </p>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
