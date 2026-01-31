@@ -1,4 +1,4 @@
-import { CircleAuth } from "@/components/CircleAuth";
+import { ConnectWallet } from "@/components/ConnectWallet";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
@@ -11,7 +11,7 @@ export default function Home() {
         </div>
         <Card className="shadow-2xl border-primary/10">
           <CardContent className="p-8">
-            <CircleAuth />
+            <ConnectWallet />
           </CardContent>
         </Card>
       </main>
