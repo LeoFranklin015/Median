@@ -7,6 +7,10 @@ import { closeChannelOnChain } from './utils/channel/close';
 import { resizeChannelOnChain } from './utils/channel/resize';
 import { depositToCustody } from './utils/channel/deposit';
 import { withdrawFromCustody } from './utils/channel/withdraw';
+import { createAppSession } from './utils/session/create';
+import { submitAppState } from './utils/session/submitState';
+import { closeAppSession } from './utils/session/close';
+import { transfer } from './utils/session/transfer';
 
 dotenv.config();
 
@@ -30,11 +34,22 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+import { privateKeyToAccount } from 'viem/accounts';
+
+// ...
+
 app.get('/ws/status', (req: Request, res: Response) => {
+  let privateKey = process.env.PRIVATE_KEY as string || '';
+  if (privateKey && !privateKey.startsWith('0x')) {
+    privateKey = `0x${privateKey}`;
+  }
+  const wallet = privateKey ? privateKeyToAccount(privateKey as `0x${string}`) : null;
+
   res.json({
     status: webSocketService.getStatus(),
     authenticated: webSocketService.isAuthenticated(),
     sessionKey: webSocketService.getSessionKey()?.address || null,
+    walletAddress: wallet?.address || null
   });
 });
 
@@ -120,6 +135,98 @@ app.post('/withdraw', async (req: Request, res: Response) => {
     res.json({ success: true, txHash });
   } catch (error) {
     console.error('Failed to withdraw:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// ==================== App Session Endpoints ====================
+
+app.post('/sessions', async (req: Request, res: Response) => {
+  try {
+    const { participants, allocations, applicationName } = req.body;
+    if (!participants || !Array.isArray(participants) || participants.length === 0) {
+      res.status(400).json({ success: false, error: 'participants array is required.' });
+      return;
+    }
+    if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
+      res.status(400).json({ success: false, error: 'allocations array is required.' });
+      return;
+    }
+    const result = await createAppSession({ participants, allocations, applicationName });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Failed to create app session:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.post('/sessions/:id/state', async (req: Request, res: Response) => {
+  try {
+    const appSessionId = req.params.id;
+    const { allocations } = req.body;
+    if (!appSessionId.startsWith('0x')) {
+      res.status(400).json({ success: false, error: 'Invalid appSessionId. Provide a hex string starting with 0x.' });
+      return;
+    }
+    if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
+      res.status(400).json({ success: false, error: 'allocations array is required.' });
+      return;
+    }
+    const result = await submitAppState({ appSessionId, allocations });
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to submit app state:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.post('/sessions/:id/close', async (req: Request, res: Response) => {
+  try {
+    const appSessionId = req.params.id;
+    const { allocations } = req.body;
+    if (!appSessionId.startsWith('0x')) {
+      res.status(400).json({ success: false, error: 'Invalid appSessionId. Provide a hex string starting with 0x.' });
+      return;
+    }
+    if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
+      res.status(400).json({ success: false, error: 'allocations array is required.' });
+      return;
+    }
+    const result = await closeAppSession({ appSessionId, allocations });
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to close app session:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.post('/transfer', async (req: Request, res: Response) => {
+  try {
+    const { destination, allocations } = req.body;
+    if (!destination || !destination.startsWith('0x')) {
+      res.status(400).json({ success: false, error: 'Invalid destination. Provide a hex address starting with 0x.' });
+      return;
+    }
+    if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
+      res.status(400).json({ success: false, error: 'allocations array is required (e.g., [{ asset: "usdc", amount: "0.001" }]).' });
+      return;
+    }
+    const result = await transfer({ destination, allocations });
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to transfer:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
