@@ -1,8 +1,13 @@
 "use client"
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Menu, X } from "lucide-react"
 const navigationLinks = [
+  {
+    name: "Markets",
+    href: "/markets",
+  },
   {
     name: "Perpetuals",
     href: "#perpetuals",
@@ -71,7 +76,7 @@ export const PortfolioNavbar = () => {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Yellow
+                Median
               </span>
             
             </button>
@@ -79,20 +84,35 @@ export const PortfolioNavbar = () => {
 
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-8">
-              {navigationLinks.map((link) => (
-                <button
-                  key={link.name}
-                  onClick={() => handleLinkClick(link.href)}
-                  className="text-foreground hover:text-primary px-3 py-2 text-base font-medium transition-colors duration-200 relative group"
-                  style={{
-                    fontFamily: "Figtree, sans-serif",
-                    fontWeight: "400",
-                  }}
-                >
-                  <span>{link.name}</span>
-                  <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></div>
-                </button>
-              ))}
+              {navigationLinks.map((link) =>
+                link.href.startsWith("/") ? (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    className="text-foreground hover:text-primary px-3 py-2 text-base font-medium transition-colors duration-200 relative group"
+                    style={{
+                      fontFamily: "Figtree, sans-serif",
+                      fontWeight: "400",
+                    }}
+                  >
+                    <span>{link.name}</span>
+                    <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                ) : (
+                  <button
+                    key={link.name}
+                    onClick={() => handleLinkClick(link.href)}
+                    className="text-foreground hover:text-primary px-3 py-2 text-base font-medium transition-colors duration-200 relative group"
+                    style={{
+                      fontFamily: "Figtree, sans-serif",
+                      fontWeight: "400",
+                    }}
+                  >
+                    <span>{link.name}</span>
+                    <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></div>
+                  </button>
+                )
+              )}
             </div>
           </div>
 
@@ -149,19 +169,34 @@ export const PortfolioNavbar = () => {
             className="md:hidden bg-background/95 backdrop-blur-md border-t border-border"
           >
             <div className="px-6 py-6 space-y-4">
-              {navigationLinks.map((link) => (
-                <button
-                  key={link.name}
-                  onClick={() => handleLinkClick(link.href)}
-                  className="block w-full text-left text-foreground hover:text-primary py-3 text-lg font-medium transition-colors duration-200"
-                  style={{
-                    fontFamily: "Figtree, sans-serif",
-                    fontWeight: "400",
-                  }}
-                >
-                  <span>{link.name}</span>
-                </button>
-              ))}
+              {navigationLinks.map((link) =>
+                link.href.startsWith("/") ? (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    onClick={closeMobileMenu}
+                    className="block w-full text-left text-foreground hover:text-primary py-3 text-lg font-medium transition-colors duration-200"
+                    style={{
+                      fontFamily: "Figtree, sans-serif",
+                      fontWeight: "400",
+                    }}
+                  >
+                    <span>{link.name}</span>
+                  </Link>
+                ) : (
+                  <button
+                    key={link.name}
+                    onClick={() => handleLinkClick(link.href)}
+                    className="block w-full text-left text-foreground hover:text-primary py-3 text-lg font-medium transition-colors duration-200"
+                    style={{
+                      fontFamily: "Figtree, sans-serif",
+                      fontWeight: "400",
+                    }}
+                  >
+                    <span>{link.name}</span>
+                  </button>
+                )
+              )}
               <div className="pt-4 border-t border-border">
                 <button
                   onClick={() => handleLinkClick("#contact")}

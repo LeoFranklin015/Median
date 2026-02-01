@@ -69,7 +69,7 @@ const defaultSections: FooterSection[] = [
 ]
 
 export const Footer = ({
-  companyName = "Yellow",
+  companyName = "Median",
   tagline = "Stocks. Unchained.",
   sections = defaultSections,
   socialLinks = {

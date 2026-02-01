@@ -118,6 +118,29 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+.animate-ticker {
+  animation: ticker-scroll 40s linear infinite;
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
