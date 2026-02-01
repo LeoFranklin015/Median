@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import { Sparkline } from "./Sparkline"
 import { cn } from "@/lib/utils"
 
@@ -15,11 +15,20 @@ export function AssetCard({
   variant = "grid",
   index = 0,
 }: {
-  asset: AssetData
+  asset: AssetData & {
+    price: number
+    change24h: number
+    change24hPercent: number
+    sparklineData: number[]
+    isLive?: boolean
+    high24h?: number
+    low24h?: number
+  }
   variant?: "grid" | "list"
   index?: number
 }) {
   const positive = asset.change24h >= 0
+  const isLive = "isLive" in asset && asset.isLive
 
   return (
     <Link href={`/markets/assets/${asset.ticker}`}>
@@ -46,7 +55,7 @@ export function AssetCard({
           variant === "list" && "flex-row flex-1 items-center"
         )}
       >
-        {/* Top: Icon, Ticker, Name */}
+        {/* Top: Icon, Ticker, Name, Live badge */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div
@@ -58,9 +67,17 @@ export function AssetCard({
               {asset.icon}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-zinc-900 truncate">
-                {asset.ticker}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-zinc-900 truncate">
+                  {asset.ticker}
+                </p>
+                {isLive && (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 text-[10px] font-medium">
+                    <Radio className="w-2.5 h-2.5" />
+                    Live
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-zinc-500 truncate">{asset.name}</p>
             </div>
           </div>
@@ -68,9 +85,15 @@ export function AssetCard({
 
         {/* Price */}
         <div className="flex flex-col gap-1">
-          <p className="text-2xl font-bold text-zinc-900 tracking-tight">
+          <motion.p
+            key={asset.price}
+            initial={{ opacity: 0.7, scale: 1.02 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="text-2xl font-bold text-zinc-900 tracking-tight tabular-nums"
+          >
             ${asset.price.toFixed(2)}
-          </p>
+          </motion.p>
           <div
             className={cn(
               "flex items-center gap-1.5 text-sm font-medium",
@@ -89,6 +112,11 @@ export function AssetCard({
             </span>
             <span className="text-zinc-400 font-normal">24H</span>
           </div>
+          {asset.high24h != null && asset.low24h != null && variant === "grid" && (
+            <p className="text-[10px] text-zinc-400 mt-1">
+              Day: ${asset.low24h.toFixed(2)} – ${asset.high24h.toFixed(2)}
+            </p>
+          )}
         </div>
 
         {/* Sparkline */}

@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, LayoutGrid, List, ChevronDown } from "lucide-react"
+import { Search, LayoutGrid, List, ChevronDown, Radio } from "lucide-react"
 import { AssetCard } from "./AssetCard"
-import { ASSETS } from "@/lib/sparkline-data"
+import type { AssetWithQuote } from "@/hooks/useStockQuotes"
 import { cn } from "@/lib/utils"
 
 const FILTER_OPTIONS = [
@@ -26,14 +26,21 @@ const SORT_OPTIONS = [
   { value: "change-asc", label: "Top Losers" },
 ]
 
-export function ProductGrid() {
+type ProductGridProps = {
+  assets: AssetWithQuote[]
+  loading?: boolean
+  error?: string | null
+  onRefetch?: () => void
+}
+
+export function ProductGrid({ assets, loading, error, onRefetch }: ProductGridProps) {
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState("most-popular")
   const [view, setView] = useState<"grid" | "list">("grid")
   const [sortOpen, setSortOpen] = useState(false)
   const [activeFilter, setActiveFilter] = useState("All assets")
 
-  const filteredAssets = ASSETS.filter((asset) => {
+  const filteredAssets = assets.filter((asset) => {
     const matchesSearch =
       asset.name.toLowerCase().includes(search.toLowerCase()) ||
       asset.ticker.toLowerCase().includes(search.toLowerCase())
@@ -66,9 +73,20 @@ export function ProductGrid() {
         transition={{ duration: 0.4 }}
         className="mb-8"
       >
-        <h1 className="text-3xl font-semibold text-zinc-900 tracking-tight mb-2">
-          Explore Assets
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-3xl font-semibold text-zinc-900 tracking-tight">
+            Explore Assets
+          </h1>
+          {assets.some((a) => a.isLive) && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-700 text-sm font-medium">
+              <Radio className="w-4 h-4 animate-pulse" />
+              Live prices
+            </span>
+          )}
+        </div>
+        <p className="text-zinc-500 text-sm mt-1">
+          Real-time data • Updates every minute
+        </p>
       </motion.div>
 
       {/* Search + Filter Pills */}
@@ -196,7 +214,32 @@ export function ProductGrid() {
 
       {/* Asset Grid / List */}
       <AnimatePresence mode="wait">
-        {sortedAssets.length > 0 ? (
+        {error && (
+          <div className="flex items-center justify-between gap-4 p-4 mb-6 rounded-xl bg-amber-50 border border-amber-200/80">
+            <p className="text-sm text-amber-700">
+              {error} Showing cached data.
+            </p>
+            {onRefetch && (
+              <button
+                type="button"
+                onClick={onRefetch}
+                className="px-4 py-2 text-sm font-medium text-amber-800 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+        {loading && sortedAssets.length === 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-64 rounded-2xl bg-zinc-100 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : sortedAssets.length > 0 ? (
           <motion.div
             key={view}
             initial={{ opacity: 0 }}
@@ -219,7 +262,7 @@ export function ProductGrid() {
               />
             ))}
           </motion.div>
-        ) : (
+        ) : !loading ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -227,7 +270,7 @@ export function ProductGrid() {
           >
             <p className="text-zinc-500">No assets match your search.</p>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </div>
   )

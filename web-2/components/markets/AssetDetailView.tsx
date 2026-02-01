@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import {
   AreaChart,
@@ -13,6 +13,7 @@ import {
 } from "recharts"
 import { ChevronDown, ArrowDown, HelpCircle, Copy } from "lucide-react"
 import type { AssetData } from "@/lib/sparkline-data"
+import { useAssetDetail } from "@/hooks/useAssetDetail"
 import { cn } from "@/lib/utils"
 
 const CHART_RANGES = [
@@ -24,31 +25,15 @@ const CHART_RANGES = [
   { key: "ALL", label: "ALL" },
 ]
 
-function generateChartData(asset: AssetData, range: string) {
-  const points =
-    range === "1D"
-      ? 24
-      : range === "1W"
-        ? 7
-        : range === "1M"
-          ? 30
-          : range === "3M"
-            ? 90
-            : range === "1Y"
-              ? 365
-              : 48
-  const data = asset.sparklineData
-  const step = Math.max(1, Math.floor(data.length / points))
-  const filtered = data.filter((_, i) => i % step === 0)
-  return filtered.map((value, i) => ({
-    time: i,
-    value: Math.round(value * 100) / 100,
-    displayValue: value.toFixed(2),
-    label:
-      range === "1D"
-        ? `01/${30 + Math.floor(i / 12)} ${String(8 + (i % 12)).padStart(2, "0")}:30`
-        : `${i + 1}`,
-  }))
+function sampleChartData(
+  data: { time: number; value: number }[],
+  range: string
+): { time: number; value: number }[] {
+  const count =
+    range === "1D" ? 24 : range === "1W" ? 7 : range === "1M" ? 30 : range === "3M" ? 90 : range === "1Y" ? 365 : data.length
+  if (data.length <= count) return data
+  const step = Math.floor(data.length / count)
+  return data.filter((_, i) => i % step === 0).slice(-count)
 }
 
 function ChainLogo({ color, children }: { color: string; children?: React.ReactNode }) {
@@ -65,19 +50,29 @@ function ChainLogo({ color, children }: { color: string; children?: React.ReactN
 }
 
 export function AssetDetailView({ asset }: { asset: AssetData }) {
+  const liveData = useAssetDetail(asset)
   const [chartRange, setChartRange] = useState("1D")
   const [payAmount, setPayAmount] = useState("0")
   const [receiveAmount, setReceiveAmount] = useState("0")
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
   const [showMore, setShowMore] = useState(false)
 
-  const positive = asset.change24h >= 0
-  const chartData = generateChartData(asset, chartRange)
+  const chartData = useMemo(() => {
+    if (liveData.chartData?.length) {
+      return sampleChartData(liveData.chartData, chartRange)
+    }
+    const step = Math.max(1, Math.floor(liveData.sparklineData.length / 24))
+    return liveData.sparklineData
+      .filter((_, i) => i % step === 0)
+      .map((v, i) => ({ time: i, value: v }))
+  }, [liveData.chartData, liveData.sparklineData, chartRange])
+
+  const positive = liveData.change24h >= 0
 
   const handlePayChange = (val: string) => {
     setPayAmount(val)
     if (parseFloat(val)) {
-      setReceiveAmount((parseFloat(val) / asset.price).toFixed(4))
+      setReceiveAmount((parseFloat(val) / liveData.price).toFixed(4))
     } else {
       setReceiveAmount("0")
     }
@@ -86,7 +81,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
   const handleReceiveChange = (val: string) => {
     setReceiveAmount(val)
     if (parseFloat(val)) {
-      setPayAmount((parseFloat(val) * asset.price).toFixed(2))
+      setPayAmount((parseFloat(val) * liveData.price).toFixed(2))
     } else {
       setPayAmount("0")
     }
@@ -94,19 +89,19 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
 
   const aboutText = `The Trust seeks to reflect such performance before payment of the Trust's expenses and liabilities. It is not actively managed. The Trust does not engage in any activities designed to obtain a profit from, or to ameliorate losses caused by, changes in the price of silver.`
 
-  const open24h = asset.price - asset.change24h
-  const high24h = Math.max(open24h, asset.price) * 1.012
-  const low24h = Math.min(open24h, asset.price) * 0.988
+  const open24h = liveData.price - liveData.change24h
+  const high24h = Math.max(open24h, liveData.price) * 1.012
+  const low24h = Math.min(open24h, liveData.price) * 0.988
 
   const stats = {
     tokenPrice: { open: open24h, high: high24h, low: low24h },
     underlyingPrice: { open: open24h, high: high24h, low: low24h },
-    marketCap: asset.marketCap ?? "$42.62B",
+    marketCap: liveData.marketCap ?? "$42.62B",
     volume24h: "510,753,638",
     avgVolume: "39,920,107",
   }
 
-  const categoryTags = [...new Set([asset.category, ...asset.categories])].slice(0, 2)
+  const categoryTags = [...new Set([liveData.category, ...liveData.categories])].slice(0, 2)
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -118,14 +113,14 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
             <div
               className={cn(
                 "w-12 h-12 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0",
-                asset.iconBg
+                liveData.iconBg
               )}
             >
-              {asset.icon}
+              {liveData.icon}
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-zinc-900">
-                {asset.name} {asset.ticker}
+                {liveData.name} {liveData.ticker}
               </h1>
               <p className="text-xs text-zinc-500 mt-1">
                 Market Closed{" "}
@@ -134,19 +129,27 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 </Link>
               </p>
               <div className="flex items-baseline gap-4 mt-3">
-                <span className="text-3xl font-bold text-zinc-900">
-                  ${asset.price.toFixed(2)}
-                </span>
-                <span
-                  className={cn(
-                    "flex items-center gap-1 text-sm font-medium",
-                    positive ? "text-emerald-600" : "text-red-600"
-                  )}
-                >
-                  {positive ? "▲" : "▼"} ${Math.abs(asset.change24h).toFixed(2)} (
-                  {positive ? "+" : ""}
-                  {asset.change24hPercent.toFixed(4)}%) 24H
-                </span>
+                {liveData.isLoading ? (
+                  <span className="text-3xl font-bold text-zinc-400 animate-pulse">
+                    —
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-3xl font-bold text-zinc-900">
+                      ${liveData.price.toFixed(2)}
+                    </span>
+                    <span
+                      className={cn(
+                        "flex items-center gap-1 text-sm font-medium",
+                        positive ? "text-emerald-600" : "text-red-600"
+                      )}
+                    >
+                      {positive ? "▲" : "▼"} ${Math.abs(liveData.change24h).toFixed(2)} (
+                      {positive ? "+" : ""}
+                      {liveData.change24hPercent.toFixed(4)}%) 24H
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -177,7 +180,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient
-                      id={`chartGradient-${asset.id}`}
+                      id={`chartGradient-${liveData.id}`}
                       x1="0"
                       y1="0"
                       x2="0"
@@ -236,7 +239,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     dataKey="value"
                     stroke={positive ? "#22c55e" : "#ef4444"}
                     strokeWidth={2}
-                    fill={`url(#chartGradient-${asset.id})`}
+                    fill={`url(#chartGradient-${liveData.id})`}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -309,11 +312,11 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
               <div className="space-y-4">
                 <div>
                   <p className="text-xs text-zinc-500 mb-1">Underlying Asset Name</p>
-                  <p className="text-sm font-medium text-zinc-900">{asset.name}</p>
+                  <p className="text-sm font-medium text-zinc-900">{liveData.name}</p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500 mb-1">Underlying Asset Ticker</p>
-                  <p className="text-sm font-medium text-zinc-900">{asset.ticker}</p>
+                  <p className="text-sm font-medium text-zinc-900">{liveData.ticker}</p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
@@ -321,7 +324,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     <HelpCircle className="w-3.5 h-3.5" />
                   </p>
                   <p className="text-sm font-medium text-zinc-900">
-                    1 {asset.ticker} = 1.0000 {asset.ticker}
+                    1 {liveData.ticker} = 1.0000 {liveData.ticker}
                   </p>
                 </div>
               </div>
@@ -504,13 +507,13 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     <div
                       className={cn(
                         "w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
-                        asset.iconBg
+                        liveData.iconBg
                       )}
                     >
-                      {asset.icon.slice(0, 1)}
+                      {liveData.icon.slice(0, 1)}
                     </div>
                     <span className="text-sm font-medium text-zinc-700">
-                      {asset.ticker}
+                      {liveData.ticker}
                     </span>
                     <ChevronDown className="w-4 h-4 text-zinc-400" />
                   </div>
@@ -522,8 +525,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-500">Rate</span>
                   <span className="text-zinc-900">
-                    1 {asset.ticker} = {Math.round(asset.price)} USDC (
-                    ${asset.price.toFixed(2)})
+                    1 {liveData.ticker} = {Math.round(liveData.price)} USDC (
+                    ${liveData.price.toFixed(2)})
                   </span>
                 </div>
                 <div className="flex justify-between text-sm items-center">
