@@ -5,6 +5,7 @@ import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { sepolia, baseSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 const config = getDefaultConfig({
   appName: "Median",
@@ -14,7 +15,7 @@ const config = getDefaultConfig({
 });
 
 export default function Provider({ children }: { children: React.ReactNode }) {
-  const queryClient = new QueryClient();
+  const [queryClient] = useState(() => new QueryClient());
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAccount, useWalletClient, usePublicClient, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,56 @@ import {
   NitroliteClient,
   WalletStateSigner,
   createAuthRequestMessage,
-  createAuthVerifyMessageFromChallenge,
+  createAuthVerifyMessage,
   createEIP712AuthMessageSigner,
+  createECDSAMessageSigner,
   createCreateChannelMessage,
   createResizeChannelMessage,
-  parseAnyRPCResponse
+  parseAnyRPCResponse,
+  RPCMethod,
+  type AuthChallengeResponse,
+  type AuthRequestParams,
 } from '@erc7824/nitrolite';
 
+// Session key type
+interface SessionKey {
+  privateKey: `0x${string}`;
+  address: `0x${string}`;
+}
+
+// Session key utilities
+const SESSION_KEY_STORAGE = 'median_yellow_session_key';
+
+const generateSessionKey = (): SessionKey => {
+  const privateKey = generatePrivateKey();
+  const account = privateKeyToAccount(privateKey);
+  return { privateKey, address: account.address };
+};
+
+const getStoredSessionKey = (): SessionKey | null => {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem(SESSION_KEY_STORAGE);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored) as SessionKey;
+  } catch {
+    return null;
+  }
+};
+
+const storeSessionKey = (key: SessionKey): void => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SESSION_KEY_STORAGE, JSON.stringify(key));
+};
+
+// Authentication constants - must match backend exactly
+const AUTH_SCOPE = 'Median App';
+const SESSION_DURATION = 3600; // 1 hour
+
+// EIP-712 domain for Yellow Network authentication
+const getAuthDomain = () => ({
+  name: AUTH_SCOPE,
+});
 
 // Yellow Network Base Sepolia configuration
 const YELLOW_CONFIG = {
@@ -36,14 +80,16 @@ const YELLOW_CONFIG = {
 export default function YellowNetworkPage() {
   const [isClient, setIsClient] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const sessionKeyRef = useRef<string | null>(null);
-  const sessionSignerRef = useRef<any>(null);
   const nitroliteClientRef = useRef<NitroliteClient | null>(null);
   const intentionalDisconnectRef = useRef(false);
-  const authDataRef = useRef<{
-    authParams?: any;
-    walletClient?: any;
-  }>({});
+  const sessionExpireTimestampRef = useRef<string>('');
+
+  // Refs to hold latest values for WebSocket handler
+  const walletClientRef = useRef<any>(null);
+  const addressRef = useRef<`0x${string}` | undefined>(undefined);
+
+  // Session key state
+  const [sessionKey, setSessionKey] = useState<SessionKey | null>(null);
 
   // Wagmi hooks
   const { address, isConnected: isWalletConnected, chain } = useAccount();
@@ -69,8 +115,27 @@ export default function YellowNetworkPage() {
   // Activity log
   const [activityLog, setActivityLog] = useState<Array<{ time: string; message: string; data?: any }>>([]);
 
+  // Keep refs updated with latest values
+  useEffect(() => {
+    walletClientRef.current = walletClient;
+    addressRef.current = address;
+  }, [walletClient, address]);
+
+  // Initialize session key on mount
   useEffect(() => {
     setIsClient(true);
+
+    // Get or generate session key
+    const existingSessionKey = getStoredSessionKey();
+    if (existingSessionKey) {
+      setSessionKey(existingSessionKey);
+      console.log('Using existing session key:', existingSessionKey.address);
+    } else {
+      const newSessionKey = generateSessionKey();
+      storeSessionKey(newSessionKey);
+      setSessionKey(newSessionKey);
+      console.log('Generated new session key:', newSessionKey.address);
+    }
   }, []);
 
   useEffect(() => {
@@ -83,13 +148,13 @@ export default function YellowNetworkPage() {
     };
   }, []);
 
-  const addLog = (message: string, data?: any) => {
+  const addLog = useCallback((message: string, data?: any) => {
     setActivityLog(prev => [{
       time: new Date().toLocaleTimeString(),
       message,
       data,
     }, ...prev].slice(0, 15));
-  };
+  }, []);
 
   // Helper to safely stringify data with BigInt values
   const safeStringify = (data: any) => {
@@ -101,6 +166,11 @@ export default function YellowNetworkPage() {
   const handleConnect = async () => {
     if (!walletClient || !address) {
       toast.error('Please connect your wallet first');
+      return;
+    }
+
+    if (!sessionKey) {
+      toast.error('Session key not initialized');
       return;
     }
 
@@ -124,24 +194,6 @@ export default function YellowNetworkPage() {
       }
 
       addLog('Wallet connected', { address, chain: walletClient.chain?.name });
-
-      // Store wallet address for use in operations
-      sessionKeyRef.current = address;
-
-      // Create message signer using wallet client
-      const walletSigner = async (payload: any): Promise<string> => {
-        try {
-          const message = JSON.stringify(payload);
-          const signature = await walletClient.signMessage({ message });
-          console.log('Wallet signature:', signature, 'length:', signature.length);
-          return signature as string;
-        } catch (error) {
-          console.error('Wallet signing failed:', error);
-          throw error;
-        }
-      };
-
-      sessionSignerRef.current = walletSigner;
 
       // Initialize Nitrolite client with wallet client
       setConnectionStatus('Creating Nitrolite client...');
@@ -168,8 +220,14 @@ export default function YellowNetworkPage() {
       addLog('Wallet ready for Yellow Network', { address });
       setConnectionStatus('Connecting to Yellow Network...');
 
+      // Generate expire timestamp for this session
+      const expireTimestamp = String(Math.floor(Date.now() / 1000) + SESSION_DURATION);
+      sessionExpireTimestampRef.current = expireTimestamp;
+
       // Connect to WebSocket
       intentionalDisconnectRef.current = false;
+
+      console.log('Creating WebSocket connection to:', YELLOW_CONFIG.ws);
       const ws = new WebSocket(YELLOW_CONFIG.ws);
 
       // Store reference immediately to prevent race conditions
@@ -182,45 +240,48 @@ export default function YellowNetworkPage() {
         addLog('WebSocket connected');
 
         try {
-          // Send auth request using wallet
-          const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-          const authParams = {
-            session_key: address as `0x${string}`,
-            allowances: [{ asset: 'usdc', amount: '1000000000' }],
-            expires_at: expiresAt,
-            scope: 'median-app',
+          // Get the current wallet client and address from refs
+          const currentWalletClient = walletClientRef.current;
+          const currentAddress = addressRef.current;
+
+          if (!currentWalletClient || !currentAddress) {
+            throw new Error('Wallet not available');
+          }
+
+          // Create auth request params matching the backend exactly
+          const allowances = [{ asset: 'usdc', amount: '1' }];
+          const authParams: AuthRequestParams = {
+            address: currentAddress,
+            session_key: sessionKey!.address,
+            expires_at: BigInt(sessionExpireTimestampRef.current),
+            scope: 'median.app',
+            application: AUTH_SCOPE,
+            allowances: allowances,
           };
 
-          const authRequestMsg = await createAuthRequestMessage({
-            address: address,
-            application: 'Median',
-            ...authParams,
-          });
+          console.log('Auth params:', authParams);
+          const authRequestMsg = await createAuthRequestMessage(authParams);
 
           console.log('Sending auth request:', authRequestMsg);
           ws.send(authRequestMsg);
-          addLog('Auth request sent', { address });
-
-          // Store auth data for challenge response
-          authDataRef.current = {
-            authParams,
-            walletClient,
-          };
+          addLog('Auth request sent', { address: currentAddress });
         } catch (error) {
           console.error('Auth request error:', error);
-          addLog('Auth request failed', error);
+          addLog('Auth request failed', { error: String(error) });
           toast.error('Authentication failed');
+          setIsConnecting(false);
         }
       };
 
       ws.onerror = (error) => {
         console.error('❌ WebSocket error:', error);
         setConnectionStatus('Connection error');
-        addLog('WebSocket error', { error });
+        addLog('WebSocket error', { error: String(error) });
         toast.error('Connection failed');
+        setIsConnecting(false);
       };
 
-      ws.onmessage = async (event) => {
+      ws.onmessage = async (event: MessageEvent) => {
         console.log('📨 Raw message:', event.data);
 
         try {
@@ -228,100 +289,85 @@ export default function YellowNetworkPage() {
           console.log('Parsed response:', response);
           addLog(`Received: ${response.method}`, response);
 
+          // Get current values from refs
+          const currentWalletClient = walletClientRef.current;
+          const currentAddress = addressRef.current;
+
           // Handle auth challenge
-          if (response.method === 'auth_challenge') {
+          if (response.method === RPCMethod.AuthChallenge) {
             console.log('Received auth challenge');
 
-            // Use setTimeout to prevent blocking and allow WebSocket to stay open
-            setTimeout(async () => {
-              try {
-                const challenge = response.params?.challengeMessage;
-                const { authParams, walletClient } = authDataRef.current;
+            if (!currentWalletClient || !currentAddress) {
+              console.error('Wallet not available for auth challenge');
+              addLog('Auth challenge failed - wallet not available');
+              toast.error('Wallet not available');
+              return;
+            }
 
-                if (!challenge || !authParams || !walletClient) {
-                  throw new Error('Missing challenge or auth data');
-                }
+            const challengeResponse = response as AuthChallengeResponse;
 
-                setConnectionStatus('Signing challenge...');
-                addLog('Signing auth challenge', { challenge });
+            setConnectionStatus('Signing challenge...');
+            addLog('Signing auth challenge');
 
-                // Create EIP-712 signer with wallet client
-                console.log('Auth params for EIP-712:', authParams);
-                console.log('Wallet address:', walletClient.account.address);
+            try {
+              // Auth params for EIP-712 signing - must match backend exactly
+              const allowances = [{ asset: 'usdc', amount: '1' }];
+              const authParams = {
+                scope: 'median.app',
+                application: currentAddress as `0x${string}`,
+                participant: sessionKey!.address,
+                expire: sessionExpireTimestampRef.current,
+                allowances: allowances,
+                session_key: sessionKey!.address,
+                expires_at: BigInt(sessionExpireTimestampRef.current),
+              };
 
-                // EIP-712 domain must match server expectations
-                // Try "ClearNode" as it's the official Yellow Network domain name
-                const eip712Domain = {
-                  name: 'ClearNode',
-                };
+              console.log('Auth params for EIP-712:', authParams);
 
-                const eip712Signer = createEIP712AuthMessageSigner(
-                  walletClient,
-                  authParams,
-                  eip712Domain
-                );
+              // Create EIP-712 signer with wallet client
+              const eip712Signer = createEIP712AuthMessageSigner(
+                currentWalletClient,
+                authParams,
+                getAuthDomain()
+              );
 
-                const verifyMsg = await createAuthVerifyMessageFromChallenge(
-                  eip712Signer,
-                  challenge
-                );
+              // Create and send auth verify message
+              const authVerifyPayload = await createAuthVerifyMessage(
+                eip712Signer,
+                challengeResponse
+              );
 
-                // Parse the verify message to extract the signature
-                try {
-                  const parsedMsg = JSON.parse(verifyMsg);
-                  console.log('Parsed auth verify message:', parsedMsg);
-                  if (parsedMsg.sig && parsedMsg.sig[0]) {
-                    const clientSig = parsedMsg.sig[0];
-                    console.log('CLIENT SIGNATURE:', clientSig);
-                    console.log('CLIENT SIGNATURE LENGTH:', clientSig.length);
-                    console.log('CLIENT SIGNATURE BYTES:', (clientSig.length - 2) / 2);
-                  }
-                } catch (e) {
-                  console.log('Could not parse verify message:', verifyMsg);
-                }
+              console.log('Auth verify payload:', authVerifyPayload);
 
-                console.log('Auth verify message:', verifyMsg);
-                console.log('Auth verify message length:', verifyMsg.length);
-
-                console.log('Verification message created, checking WebSocket state...');
-                console.log('WebSocket readyState:', wsRef.current?.readyState);
-
-                // Check if WebSocket is still open before sending
-                const currentWs = wsRef.current;
-                if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-                  console.log('Sending verification:', verifyMsg);
-                  currentWs.send(verifyMsg);
-                  addLog('Auth verification sent');
-                } else {
-                  const state = currentWs?.readyState === WebSocket.CONNECTING ? 'connecting' :
-                               currentWs?.readyState === WebSocket.CLOSING ? 'closing' :
-                               currentWs?.readyState === WebSocket.CLOSED ? 'closed' : 'undefined';
-                  const error = `WebSocket is ${state}, cannot send verification`;
-                  console.error(error);
-                  addLog('Verification failed', { error, wsState: state });
-                  toast.error('Connection closed during authentication');
-                }
-              } catch (error) {
-                console.error('Auth challenge handling error:', error);
-                addLog('Auth challenge failed', { error: String(error) });
-                toast.error('Authentication challenge failed');
+              // Check if WebSocket is still open before sending
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(authVerifyPayload);
+                addLog('Auth verification sent');
+              } else {
+                throw new Error('WebSocket closed during authentication');
               }
-            }, 0);
+            } catch (error) {
+              console.error('Auth challenge handling error:', error);
+              addLog('Auth challenge failed', { error: String(error) });
+              toast.error('Signature rejected or authentication failed');
+              setIsConnecting(false);
+            }
           }
           // Handle auth success
-          else if (response.method === 'auth_verify') {
+          else if (response.method === RPCMethod.AuthVerify) {
             console.log('✅ Authentication successful!');
             setIsAuthenticated(true);
             setConnectionStatus('Authenticated');
+            setIsConnecting(false);
             addLog('Authentication successful! ✅');
             toast.success('Authenticated with Yellow Network!');
           }
           // Handle channel creation response
           else if (response.method === 'create_channel') {
-            const { channelId, channel, state, serverSignature } = response.params;
-            console.log('Channel created:', channelId);
+            const { channelId: newChannelId, channel, state, serverSignature } = response.params;
+            console.log('Channel created:', newChannelId);
 
-            setChannelId(channelId);
+            setChannelId(newChannelId);
 
             // Register channel with Nitrolite client
             const unsignedInitialState = {
@@ -354,7 +400,7 @@ export default function YellowNetworkPage() {
               }
             }
 
-            addLog('Channel created successfully', { channelId });
+            addLog('Channel created successfully', { channelId: newChannelId });
             toast.success('Channel created!');
             setIsCreatingChannel(false);
           }
@@ -367,13 +413,13 @@ export default function YellowNetworkPage() {
 
             // Update balance from allocations
             const totalBalance = response.params.state.allocations.reduce(
-              (sum, alloc) => sum + alloc.amount,
+              (sum: bigint, alloc: any) => sum + BigInt(alloc.amount),
               BigInt(0)
             );
             setChannelBalance(totalBalance.toString());
           }
           // Handle errors
-          else if (response.method === 'error') {
+          else if (response.method === RPCMethod.Error) {
             const error = response.params?.error || 'Unknown error';
             console.error('❌ Error from server:', error);
             console.error('Full error response:', response);
@@ -383,10 +429,11 @@ export default function YellowNetworkPage() {
               fullResponse: response
             });
             toast.error(`Server error: ${error}`);
+            setIsConnecting(false);
           }
         } catch (error) {
           console.error('Failed to parse message:', error);
-          addLog('Parse error', { raw: event.data, error });
+          addLog('Parse error', { raw: event.data, error: String(error) });
         }
       };
 
@@ -402,6 +449,7 @@ export default function YellowNetworkPage() {
         setIsConnected(false);
         setIsAuthenticated(false);
         setConnectionStatus('Disconnected');
+        setIsConnecting(false);
 
         if (!wasIntentional) {
           addLog('Unexpected disconnect', {
@@ -418,8 +466,7 @@ export default function YellowNetworkPage() {
       console.error('Connection error:', error);
       toast.error('Failed to connect');
       setConnectionStatus('Failed');
-      addLog('Connection failed', error);
-    } finally {
+      addLog('Connection failed', { error: String(error) });
       setIsConnecting(false);
     }
   };
@@ -450,13 +497,13 @@ export default function YellowNetworkPage() {
       }
     } catch (error) {
       console.error('Faucet error:', error);
-      addLog('Faucet error', error);
+      addLog('Faucet error', { error: String(error) });
       toast.error('Failed to request faucet');
     }
   };
 
   const handleCreateChannel = async () => {
-    if (!wsRef.current || !sessionSignerRef.current || !isAuthenticated) {
+    if (!wsRef.current || !isAuthenticated || !sessionKey) {
       toast.error('Not authenticated');
       return;
     }
@@ -465,7 +512,10 @@ export default function YellowNetworkPage() {
       setIsCreatingChannel(true);
       addLog('Creating channel...');
 
-      const createChannelMsg = await createCreateChannelMessage(sessionSignerRef.current, {
+      // Create a signer using the session key (not wallet client)
+      const sessionSigner = createECDSAMessageSigner(sessionKey.privateKey);
+
+      const createChannelMsg = await createCreateChannelMessage(sessionSigner, {
         chain_id: YELLOW_CONFIG.chainId,
         token: YELLOW_CONFIG.testToken,
       });
@@ -475,14 +525,16 @@ export default function YellowNetworkPage() {
       addLog('Channel creation request sent');
     } catch (error) {
       console.error('Create channel error:', error);
-      addLog('Channel creation failed', error);
+      addLog('Channel creation failed', { error: String(error) });
       toast.error('Failed to create channel');
       setIsCreatingChannel(false);
     }
   };
 
   const handleFundChannel = async () => {
-    if (!wsRef.current || !sessionSignerRef.current || !channelId || !address) {
+    const currentAddress = addressRef.current;
+
+    if (!wsRef.current || !channelId || !currentAddress || !sessionKey) {
       toast.error('Channel not ready');
       return;
     }
@@ -491,10 +543,13 @@ export default function YellowNetworkPage() {
       setIsFunding(true);
       addLog(`Funding channel with ${fundAmount}...`);
 
-      const resizeMsg = await createResizeChannelMessage(sessionSignerRef.current, {
+      // Create a signer using the session key (not wallet client)
+      const sessionSigner = createECDSAMessageSigner(sessionKey.privateKey);
+
+      const resizeMsg = await createResizeChannelMessage(sessionSigner, {
         channel_id: channelId as `0x${string}`,
         allocate_amount: BigInt(fundAmount),
-        funds_destination: address,
+        funds_destination: currentAddress,
       });
 
       console.log('Sending resize:', resizeMsg);
@@ -502,7 +557,7 @@ export default function YellowNetworkPage() {
       addLog('Fund request sent', { amount: fundAmount });
     } catch (error) {
       console.error('Fund error:', error);
-      addLog('Funding failed', error);
+      addLog('Funding failed', { error: String(error) });
       toast.error('Failed to fund channel');
       setIsFunding(false);
     }
@@ -518,8 +573,6 @@ export default function YellowNetworkPage() {
     setIsAuthenticated(false);
     setChannelId('');
     setConnectionStatus('');
-    sessionKeyRef.current = null;
-    sessionSignerRef.current = null;
     nitroliteClientRef.current = null;
     addLog('Disconnected');
     toast.info('Disconnected');
@@ -609,7 +662,7 @@ export default function YellowNetworkPage() {
                     </div>
                     <Button
                       onClick={handleConnect}
-                      disabled={isConnecting}
+                      disabled={isConnecting || !walletClient || !sessionKey}
                       className="w-full"
                       size="lg"
                     >
@@ -617,6 +670,11 @@ export default function YellowNetworkPage() {
                         <>
                           <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           {connectionStatus}
+                        </>
+                      ) : !walletClient || !sessionKey ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Loading wallet...
                         </>
                       ) : (
                         <>
@@ -661,10 +719,16 @@ export default function YellowNetworkPage() {
                       </div>
                     </div>
 
-                    {sessionKeyRef.current && (
+                    {address && (
                       <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Active Wallet</p>
-                        <p className="text-xs font-mono break-all">{sessionKeyRef.current}</p>
+                        <p className="text-xs text-muted-foreground mb-1">Wallet Address</p>
+                        <p className="text-xs font-mono break-all">{address}</p>
+                      </div>
+                    )}
+                    {sessionKey && (
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">Session Key</p>
+                        <p className="text-xs font-mono break-all">{sessionKey.address}</p>
                       </div>
                     )}
                   </>
