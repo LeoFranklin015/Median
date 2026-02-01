@@ -6,6 +6,7 @@ import { WagmiProvider } from "wagmi";
 import { sepolia, baseSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { YellowNetworkProvider } from "@/lib/yellowNetwork";
 
 const config = getDefaultConfig({
   appName: "Median",
@@ -19,7 +20,9 @@ export default function Provider({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>{children}</RainbowKitProvider>
+        <RainbowKitProvider>
+          <YellowNetworkProvider>{children}</YellowNetworkProvider>
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
