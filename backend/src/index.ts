@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { webSocketService } from './lib/websockets';
 import { createChannelOnChain } from './utils/channel/create';
+import { depositToCustody } from './utils/channel/deposit';
+import { withdrawFromCustody } from './utils/channel/withdraw';
 
 dotenv.config();
 
@@ -34,13 +36,48 @@ app.get('/ws/status', (req: Request, res: Response) => {
   });
 });
 
-
 app.post('/channels/onchain', async (req: Request, res: Response) => {
   try {
     const result = await createChannelOnChain();
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Failed to create channel on-chain:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.post('/deposit', async (req: Request, res: Response) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      res.status(400).json({ success: false, error: 'Invalid amount. Provide a positive number.' });
+      return;
+    }
+    const txHash = await depositToCustody(amount.toString());
+    res.json({ success: true, txHash });
+  } catch (error) {
+    console.error('Failed to deposit:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.post('/withdraw', async (req: Request, res: Response) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      res.status(400).json({ success: false, error: 'Invalid amount. Provide a positive number.' });
+      return;
+    }
+    const txHash = await withdrawFromCustody(amount.toString());
+    res.json({ success: true, txHash });
+  } catch (error) {
+    console.error('Failed to withdraw:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
