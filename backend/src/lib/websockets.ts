@@ -8,6 +8,7 @@ import {
     createAuthRequestMessage,
     createAuthVerifyMessage,
     createCreateChannelMessage,
+    createCloseChannelMessage,
     createEIP712AuthMessageSigner,
     createECDSAMessageSigner,
     AuthChallengeResponse,
@@ -62,6 +63,7 @@ class WebSocketService {
     private publicClient: ReturnType<typeof createPublicClient> | null = null;
     private authResolvers: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
     private channelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
+    private closeChannelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
 
     constructor() {
         // Initialize immediately when the module loads
@@ -213,12 +215,19 @@ class WebSocketService {
                 this.handleCreateChannel(message);
                 break;
 
+            case RPCMethod.CloseChannel:
+            case 'close_channel':
+                this.handleCloseChannel(message);
+                break;
+
             case RPCMethod.Error:
             case 'error':
                 console.error('❌ RPC Error:', message.params);
                 // Reject any pending channel resolvers
                 this.channelResolvers.forEach(({ reject }) => reject(new Error(JSON.stringify(message.params))));
                 this.channelResolvers.clear();
+                this.closeChannelResolvers.forEach(({ reject }) => reject(new Error(JSON.stringify(message.params))));
+                this.closeChannelResolvers.clear();
                 break;
 
             default:
@@ -281,6 +290,15 @@ class WebSocketService {
         // Resolve all pending channel promises with the message
         this.channelResolvers.forEach(({ resolve }) => resolve(message.params));
         this.channelResolvers.clear();
+    }
+
+    private handleCloseChannel(message: RPCResponse) {
+        console.log('🔒 Close channel approved by server!');
+        console.log('Close channel response:', message);
+
+        // Resolve all pending close channel promises with the message
+        this.closeChannelResolvers.forEach(({ resolve }) => resolve(message.params));
+        this.closeChannelResolvers.clear();
     }
 
     public send(payload: string) {
@@ -393,6 +411,66 @@ class WebSocketService {
 
         console.log(`🧬 Channel ${channelId} created on-chain (tx: ${txHash})`);
         return { channelId, txHash };
+    }
+
+    /**
+     * Close a channel - sends close request via WebSocket and executes on-chain
+     */
+    public async closeChannelOnChain(channelId: string): Promise<{ txHash: string }> {
+        await this.waitForAuth();
+
+        if (!this.sessionSigner) {
+            throw new Error('Session signer not initialized');
+        }
+
+        const wallet = getWallet();
+
+        console.log(`🔒 Requesting channel close for: ${channelId}`);
+
+        // Send close channel message via WebSocket
+        const closeMessage = await createCloseChannelMessage(
+            this.sessionSigner,
+            channelId as `0x${string}`,
+            wallet.address
+        );
+
+        // Wait for server approval
+        const closeData = await new Promise<any>((resolve, reject) => {
+            const id = Date.now().toString();
+            this.closeChannelResolvers.set(id, { resolve, reject });
+            this.send(closeMessage);
+
+            // Timeout after 30 seconds
+            setTimeout(() => {
+                if (this.closeChannelResolvers.has(id)) {
+                    this.closeChannelResolvers.delete(id);
+                    reject(new Error('Close channel timeout'));
+                }
+            }, 30000);
+        });
+
+        console.log('✅ Close approved by server, executing on-chain...');
+
+        // Execute close on-chain
+        const nitroliteClient = this.getNitroliteClient();
+        if (!nitroliteClient) {
+            throw new Error('NitroliteClient not initialized');
+        }
+
+        const txHash = await nitroliteClient.closeChannel({
+            finalState: {
+                intent: closeData.state.intent as StateIntent,
+                channelId: closeData.channelId as `0x${string}`,
+                data: closeData.state.stateData as `0x${string}`,
+                allocations: closeData.state.allocations as Allocation[],
+                version: BigInt(closeData.state.version),
+                serverSignature: closeData.serverSignature as `0x${string}`,
+            },
+            stateData: closeData.state.stateData as `0x${string}`,
+        });
+
+        console.log(`🔒 Channel ${channelId} closed on-chain (tx: ${txHash})`);
+        return { txHash };
     }
 
     public addStatusListener(listener: StatusListener) {
