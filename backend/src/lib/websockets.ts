@@ -9,6 +9,7 @@ import {
     createAuthVerifyMessage,
     createCreateChannelMessage,
     createCloseChannelMessage,
+    createResizeChannelMessage,
     createEIP712AuthMessageSigner,
     createECDSAMessageSigner,
     AuthChallengeResponse,
@@ -21,7 +22,8 @@ import {
     Allocation,
     ContractAddresses,
     parseAnyRPCResponse,
-    getMethod
+    getMethod,
+    State
 } from '@erc7824/nitrolite';
 import { generateSessionKey, SessionKey, storeSessionKey } from './sessionStore';
 import getContractAddresses, {
@@ -64,6 +66,7 @@ class WebSocketService {
     private authResolvers: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
     private channelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
     private closeChannelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
+    private resizeChannelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
 
     constructor() {
         // Initialize immediately when the module loads
@@ -220,14 +223,21 @@ class WebSocketService {
                 this.handleCloseChannel(message);
                 break;
 
+            case RPCMethod.ResizeChannel:
+            case 'resize_channel':
+                this.handleResizeChannel(message);
+                break;
+
             case RPCMethod.Error:
             case 'error':
                 console.error('❌ RPC Error:', message.params);
-                // Reject any pending channel resolvers
+                // Reject any pending resolvers
                 this.channelResolvers.forEach(({ reject }) => reject(new Error(JSON.stringify(message.params))));
                 this.channelResolvers.clear();
                 this.closeChannelResolvers.forEach(({ reject }) => reject(new Error(JSON.stringify(message.params))));
                 this.closeChannelResolvers.clear();
+                this.resizeChannelResolvers.forEach(({ reject }) => reject(new Error(JSON.stringify(message.params))));
+                this.resizeChannelResolvers.clear();
                 break;
 
             default:
@@ -299,6 +309,15 @@ class WebSocketService {
         // Resolve all pending close channel promises with the message
         this.closeChannelResolvers.forEach(({ resolve }) => resolve(message.params));
         this.closeChannelResolvers.clear();
+    }
+
+    private handleResizeChannel(message: RPCResponse) {
+        console.log('📐 Resize channel approved by server!');
+        console.log('Resize channel response:', message);
+
+        // Resolve all pending resize channel promises with the message
+        this.resizeChannelResolvers.forEach(({ resolve }) => resolve(message.params));
+        this.resizeChannelResolvers.clear();
     }
 
     public send(payload: string) {
@@ -470,6 +489,88 @@ class WebSocketService {
         });
 
         console.log(`🔒 Channel ${channelId} closed on-chain (tx: ${txHash})`);
+        return { txHash };
+    }
+
+    /**
+     * Resize a channel - sends resize request via WebSocket and executes on-chain
+     * @param channelId - The channel ID to resize
+     * @param resizeAmount - Amount to add/remove from channel (positive=custody→channel, negative=channel→custody)
+     * @param allocateAmount - Amount to allocate/deallocate (positive=channel→unified, negative=unified→channel)
+     */
+    public async resizeChannelOnChain(
+        channelId: string,
+        resizeAmount?: bigint,
+        allocateAmount?: bigint
+    ): Promise<{ txHash: string }> {
+        await this.waitForAuth();
+
+        if (!this.sessionSigner) {
+            throw new Error('Session signer not initialized');
+        }
+
+        const wallet = getWallet();
+
+        // Determine funds destination based on allocate direction
+        const isAllocating = allocateAmount !== undefined && allocateAmount > 0n;
+        const fundsDestination = wallet.address; // Usually wallet address for resize
+
+        console.log(`📐 Requesting channel resize for: ${channelId}`);
+        if (resizeAmount !== undefined) {
+            console.log(`   Resize amount: ${resizeAmount.toString()}`);
+        }
+        if (allocateAmount !== undefined) {
+            console.log(`   Allocate amount: ${allocateAmount.toString()}`);
+        }
+
+        // Send resize channel message via WebSocket
+        const resizeMessage = await createResizeChannelMessage(this.sessionSigner, {
+            channel_id: channelId as `0x${string}`,
+            ...(resizeAmount !== undefined && { resize_amount: resizeAmount }),
+            ...(allocateAmount !== undefined && { allocate_amount: allocateAmount }),
+            funds_destination: fundsDestination,
+        });
+
+        // Wait for server approval
+        const resizeData = await new Promise<any>((resolve, reject) => {
+            const id = Date.now().toString();
+            this.resizeChannelResolvers.set(id, { resolve, reject });
+            this.send(resizeMessage);
+
+            // Timeout after 30 seconds
+            setTimeout(() => {
+                if (this.resizeChannelResolvers.has(id)) {
+                    this.resizeChannelResolvers.delete(id);
+                    reject(new Error('Resize channel timeout'));
+                }
+            }, 30000);
+        });
+
+        console.log('✅ Resize approved by server, executing on-chain...');
+
+        // Execute resize on-chain
+        const nitroliteClient = this.getNitroliteClient();
+        if (!nitroliteClient) {
+            throw new Error('NitroliteClient not initialized');
+        }
+
+        // Fetch previous state for proof
+        const previousState = await nitroliteClient.getChannelData(channelId as `0x${string}`);
+        console.log('📋 Previous state fetched for proof');
+
+        const { txHash } = await nitroliteClient.resizeChannel({
+            resizeState: {
+                channelId: resizeData.channelId as `0x${string}`,
+                intent: resizeData.state.intent as StateIntent,
+                version: BigInt(resizeData.state.version),
+                data: resizeData.state.stateData as `0x${string}`,
+                allocations: resizeData.state.allocations as Allocation[],
+                serverSignature: resizeData.serverSignature as `0x${string}`,
+            },
+            proofStates: [previousState.lastValidState as State],
+        });
+
+        console.log(`📐 Channel ${channelId} resized on-chain (tx: ${txHash})`);
         return { txHash };
     }
 

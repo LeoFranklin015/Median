@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { webSocketService } from './lib/websockets';
 import { createChannelOnChain } from './utils/channel/create';
 import { closeChannelOnChain } from './utils/channel/close';
+import { resizeChannelOnChain } from './utils/channel/resize';
 import { depositToCustody } from './utils/channel/deposit';
 import { withdrawFromCustody } from './utils/channel/withdraw';
 
@@ -61,6 +62,28 @@ app.post('/channels/close', async (req: Request, res: Response) => {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Failed to close channel:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.post('/channels/resize', async (req: Request, res: Response) => {
+  try {
+    const { channelId, resizeAmount, allocateAmount } = req.body;
+    if (!channelId || !channelId.startsWith('0x')) {
+      res.status(400).json({ success: false, error: 'Invalid channelId. Provide a hex string starting with 0x.' });
+      return;
+    }
+    if (resizeAmount === undefined && allocateAmount === undefined) {
+      res.status(400).json({ success: false, error: 'At least one of resizeAmount or allocateAmount must be provided.' });
+      return;
+    }
+    const result = await resizeChannelOnChain(channelId, resizeAmount, allocateAmount);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Failed to resize channel:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
