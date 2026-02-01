@@ -3,23 +3,14 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { TrendingUp, TrendingDown } from "lucide-react"
-import { ASSETS } from "@/lib/sparkline-data"
+import type { AssetWithQuote } from "@/hooks/useStockQuotes"
 import { cn } from "@/lib/utils"
-
-const topGainers = [...ASSETS]
-  .filter((a) => a.change24hPercent > 0)
-  .sort((a, b) => b.change24hPercent - a.change24hPercent)
-  .slice(0, 5)
-
-const trending = [ASSETS[0], ASSETS[1], ASSETS[6], ASSETS[7], ASSETS[8]] // SLV, NVDA, AAPL, SPY, TSLA - high visibility
-
-const newlyAdded = ASSETS.filter((a) => a.addedDate).slice(0, 5)
 
 function ColumnItem({
   asset,
   type,
 }: {
-  asset: (typeof ASSETS)[0]
+  asset: AssetWithQuote
   type: "gainers" | "trending" | "newlyAdded"
 }) {
   const positive = asset.change24h >= 0
@@ -86,7 +77,7 @@ function Column({
   delay = 0,
 }: {
   title: string
-  items: (typeof ASSETS)[0][]
+  items: AssetWithQuote[]
   type: "gainers" | "trending" | "newlyAdded"
   delay?: number
 }) {
@@ -110,7 +101,33 @@ function Column({
   )
 }
 
-export function AssetColumns() {
+type AssetColumnsProps = {
+  assets: AssetWithQuote[]
+  loading?: boolean
+}
+
+export function AssetColumns({ assets, loading }: AssetColumnsProps) {
+  const topGainers = [...assets]
+    .filter((a) => a.change24hPercent > 0)
+    .sort((a, b) => b.change24hPercent - a.change24hPercent)
+    .slice(0, 5)
+
+  const trending = assets.length >= 9
+    ? [assets[0], assets[1], assets[6], assets[7], assets[8]]
+    : assets.slice(0, 5)
+
+  const newlyAdded = assets.filter((a) => a.addedDate).slice(0, 5)
+
+  if (loading && assets.every((a) => !a.isLive)) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-48 rounded-2xl bg-zinc-100 animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
       <Column

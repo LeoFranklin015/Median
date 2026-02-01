@@ -15,7 +15,7 @@ export function AssetCard({
   variant = "grid",
   index = 0,
 }: {
-  asset: AssetData
+  asset: AssetData & { price: number; change24h: number; change24hPercent: number; sparklineData: number[] }
   variant?: "grid" | "list"
   index?: number
 }) {
