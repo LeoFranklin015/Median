@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import type { AssetWithQuote } from "@/hooks/useStockQuotes"
 import { cn } from "@/lib/utils"
 
@@ -89,7 +89,15 @@ function Column({
       className="flex-1 min-w-0 rounded-2xl bg-white border border-zinc-200/80 p-5 shadow-sm hover:shadow-md transition-shadow duration-300"
     >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-semibold text-zinc-900">{title}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-zinc-900">{title}</h3>
+          {items.some((a) => a.isLive) && (
+            <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+              <Radio className="w-3 h-3" />
+              Live
+            </span>
+          )}
+        </div>
         <span className="text-xs text-zinc-400 font-medium">24H</span>
       </div>
       <div className="space-y-1">

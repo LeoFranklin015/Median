@@ -12,6 +12,7 @@ type QuoteData = {
   l: number
   o: number
   pc: number
+  t?: number
 }
 
 function generateSparklineFromChange(
@@ -37,6 +38,10 @@ export type AssetWithQuote = AssetData & {
   change24hPercent: number
   sparklineData: number[]
   isLive: boolean
+  high24h?: number
+  low24h?: number
+  open24h?: number
+  lastUpdated?: Date
 }
 
 function mergeAssetWithQuote(
@@ -70,6 +75,10 @@ function mergeAssetWithQuote(
     change24hPercent: changePercent,
     sparklineData: sparkline,
     isLive: true,
+    high24h: quote.h > 0 ? quote.h : undefined,
+    low24h: quote.l > 0 ? quote.l : undefined,
+    open24h: quote.o > 0 ? quote.o : undefined,
+    lastUpdated: new Date(),
   }
 }
 
@@ -85,8 +94,8 @@ export function useStockQuotes(): {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchQuotes = async () => {
-    setLoading(true)
+  const fetchQuotes = async (isRefetch = false) => {
+    if (!isRefetch) setLoading(true)
     setError(null)
     try {
       const res = await fetch("/api/stocks/quotes")
@@ -106,10 +115,10 @@ export function useStockQuotes(): {
   }
 
   useEffect(() => {
-    fetchQuotes()
-    const interval = setInterval(fetchQuotes, 60000)
+    fetchQuotes(false)
+    const interval = setInterval(() => fetchQuotes(true), 60000)
     return () => clearInterval(interval)
   }, [])
 
-  return { assets, loading, error, refetch: fetchQuotes }
+  return { assets, loading, error, refetch: () => fetchQuotes(false) }
 }

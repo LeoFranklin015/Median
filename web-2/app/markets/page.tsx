@@ -7,7 +7,7 @@ import { ProductGrid } from "@/components/markets/ProductGrid"
 import { useStockQuotes } from "@/hooks/useStockQuotes"
 
 export default function MarketsPage() {
-  const { assets, loading, error } = useStockQuotes()
+  const { assets, loading, error, refetch } = useStockQuotes()
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -16,7 +16,7 @@ export default function MarketsPage() {
         <MarketTickerBar />
         <div className="px-4 sm:px-6 lg:px-8 mt-8">
           <AssetColumns assets={assets} loading={loading} />
-          <ProductGrid assets={assets} loading={loading} error={error} />
+          <ProductGrid assets={assets} loading={loading} error={error} onRefetch={refetch} />
         </div>
       </main>
     </div>
