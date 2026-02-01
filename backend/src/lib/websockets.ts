@@ -738,11 +738,13 @@ class WebSocketService {
      * @param appSessionId - The app session ID
      * @param allocations - Updated allocations
      * @param intent - The state intent (default: Operate)
+     * @param sessionData - Optional JSON payload to include with state update
      */
     public async submitAppState(
         appSessionId: string,
         allocations: { participant: string; asset: string; amount: string }[],
-        intent: RPCAppStateIntent = RPCAppStateIntent.Operate
+        intent: RPCAppStateIntent = RPCAppStateIntent.Operate,
+        sessionData?: Record<string, unknown>
     ): Promise<{ success: boolean }> {
         await this.waitForAuth();
 
@@ -768,6 +770,7 @@ class WebSocketService {
             intent,
             version: newVersion,
             allocations: rpcAllocations,
+            ...(sessionData && { session_data: JSON.stringify(sessionData) }),
         });
 
         // Wait for server response

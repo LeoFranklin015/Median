@@ -169,7 +169,7 @@ app.post('/sessions', async (req: Request, res: Response) => {
 app.post('/sessions/:id/state', async (req: Request, res: Response) => {
   try {
     const appSessionId = req.params.id;
-    const { allocations } = req.body;
+    const { allocations, sessionData, intent } = req.body;
     if (!appSessionId.startsWith('0x')) {
       res.status(400).json({ success: false, error: 'Invalid appSessionId. Provide a hex string starting with 0x.' });
       return;
@@ -178,7 +178,11 @@ app.post('/sessions/:id/state', async (req: Request, res: Response) => {
       res.status(400).json({ success: false, error: 'allocations array is required.' });
       return;
     }
-    const result = await submitAppState({ appSessionId, allocations });
+    if (intent && !['operate', 'deposit', 'withdraw'].includes(intent)) {
+      res.status(400).json({ success: false, error: 'Invalid intent. Use: operate, deposit, or withdraw.' });
+      return;
+    }
+    const result = await submitAppState({ appSessionId, allocations, sessionData, intent });
     res.json(result);
   } catch (error) {
     console.error('Failed to submit app state:', error);
