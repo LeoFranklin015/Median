@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts"
-import { ChevronDown, ArrowDown, HelpCircle } from "lucide-react"
+import { ChevronDown, ArrowDown, HelpCircle, Copy } from "lucide-react"
 import type { AssetData } from "@/lib/sparkline-data"
 import { cn } from "@/lib/utils"
 
@@ -92,7 +92,21 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
     }
   }
 
-  const aboutText = `The iShares Silver Trust (the "Trust") seeks to reflect generally the performance of the price of silver. The Trust seeks to reflect such performance before payment of the Trust's expenses and liabilities. It is designed to provide a cost-effective and convenient way to invest in silver.`
+  const aboutText = `The Trust seeks to reflect such performance before payment of the Trust's expenses and liabilities. It is not actively managed. The Trust does not engage in any activities designed to obtain a profit from, or to ameliorate losses caused by, changes in the price of silver.`
+
+  const open24h = asset.price - asset.change24h
+  const high24h = Math.max(open24h, asset.price) * 1.012
+  const low24h = Math.min(open24h, asset.price) * 0.988
+
+  const stats = {
+    tokenPrice: { open: open24h, high: high24h, low: low24h },
+    underlyingPrice: { open: open24h, high: high24h, low: low24h },
+    marketCap: asset.marketCap ?? "$42.62B",
+    volume24h: "510,753,638",
+    avgVolume: "39,920,107",
+  }
+
+  const categoryTags = [...new Set([asset.category, ...asset.categories])].slice(0, 2)
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -230,12 +244,10 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
           </div>
 
           {/* About section */}
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900 mb-2">
-              About¹
-            </h2>
-            <p className="text-sm text-zinc-600 leading-relaxed">
-              {showMore ? aboutText : aboutText.slice(0, 180) + "..."}{" "}
+          <div className="rounded-xl bg-white border border-zinc-200/80 p-6">
+            <h2 className="text-lg font-bold text-zinc-900 mb-4">About</h2>
+            <p className="text-sm text-zinc-600 leading-relaxed mb-6">
+              {showMore ? aboutText : aboutText.slice(0, 150) + "..."}{" "}
               <button
                 type="button"
                 onClick={() => setShowMore(!showMore)}
@@ -244,21 +256,164 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 {showMore ? "Show Less" : "Show More"}
               </button>
             </p>
-          </div>
 
-          {/* Supported Chains + Underlying Asset */}
-          <div className="flex flex-wrap items-center gap-6 pt-4 border-t border-zinc-200">
-            <div>
-              <p className="text-xs text-zinc-500 mb-2">Supported Chains</p>
-              <div className="flex gap-2">
-                <ChainLogo color="bg-blue-600">⟠</ChainLogo>
-                <ChainLogo color="bg-violet-500">◇</ChainLogo>
-                <ChainLogo color="bg-amber-400 text-amber-900">◆</ChainLogo>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-zinc-200">
+              {/* Left column */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-zinc-500 mb-2">Supported Chains</p>
+                  <div className="flex gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-sm bg-violet-500" />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 via-blue-500 to-emerald-400 flex items-center justify-center" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 mb-2">Onchain Address</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono text-zinc-900">
+                      0xf3e4...f1a4
+                    </span>
+                    <button
+                      type="button"
+                      className="p-1 hover:bg-zinc-100 rounded"
+                      aria-label="Copy"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                    </button>
+                    <ChevronDown className="w-4 h-4 text-zinc-400" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 mb-2">Category</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {categoryTags.map((cat, i) => (
+                      <span
+                        key={cat}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-medium",
+                          i === 0 && (cat === "ETF" || cat === "Commodities")
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-zinc-100 text-zinc-700"
+                        )}
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right column */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-zinc-500 mb-1">Underlying Asset Name</p>
+                  <p className="text-sm font-medium text-zinc-900">{asset.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 mb-1">Underlying Asset Ticker</p>
+                  <p className="text-sm font-medium text-zinc-900">{asset.ticker}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+                    Shares Per Token
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </p>
+                  <p className="text-sm font-medium text-zinc-900">
+                    1 {asset.ticker} = 1.0000 {asset.ticker}
+                  </p>
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Statistics section */}
+          <div className="rounded-xl bg-white border border-zinc-200/80 p-6">
+            <h2 className="text-lg font-bold text-zinc-900 mb-6">Statistics</h2>
+
+            {/* Price data - 24H */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 pb-6 border-b border-zinc-200">
+              <div>
+                <p className="text-sm font-medium text-zinc-900 mb-4">
+                  Token Price² 24H⁴
+                </p>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Open</span>
+                    <span className="text-zinc-900 font-medium">
+                      ${stats.tokenPrice.open.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">High</span>
+                    <span className="text-zinc-900 font-medium">
+                      ${stats.tokenPrice.high.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Low</span>
+                    <span className="text-zinc-900 font-medium">
+                      ${stats.tokenPrice.low.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-900 mb-4">
+                  Underlying Asset Price² 24H⁴
+                </p>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Open</span>
+                    <span className="text-zinc-900 font-medium">
+                      ${stats.underlyingPrice.open.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">High</span>
+                    <span className="text-zinc-900 font-medium">
+                      ${stats.underlyingPrice.high.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Low</span>
+                    <span className="text-zinc-900 font-medium">
+                      ${stats.underlyingPrice.low.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Underlying Asset Statistics */}
             <div>
-              <p className="text-xs text-zinc-500 mb-1">Underlying Asset Name</p>
-              <p className="text-sm font-medium text-zinc-900">{asset.name}</p>
+              <p className="text-sm font-medium text-zinc-900 mb-4">
+                Underlying Asset Statistics³
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex justify-between sm:flex-col sm:gap-1 py-3 border-b sm:border-b-0 sm:border-r border-zinc-200 pr-4">
+                  <span className="text-zinc-500 text-sm flex items-center gap-1">
+                    Total Market Cap
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-zinc-900 font-medium">{stats.marketCap}</span>
+                </div>
+                <div className="flex justify-between sm:flex-col sm:gap-1 py-3 border-b sm:border-b-0 sm:border-r border-zinc-200 pr-4">
+                  <span className="text-zinc-500 text-sm flex items-center gap-1">
+                    24h Volume
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-zinc-900 font-medium">{stats.volume24h}</span>
+                </div>
+                <div className="flex justify-between sm:flex-col sm:gap-1 py-3">
+                  <span className="text-zinc-500 text-sm flex items-center gap-1">
+                    Average Volume
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-zinc-900 font-medium">{stats.avgVolume}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
