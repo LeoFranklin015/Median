@@ -1,117 +1,36 @@
-# Circle Modular Wallet with Dynamic Integration
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-This project integrates Circle's Modular Wallets SDK with Dynamic for seamless Web3 authentication and smart account management.
+## Getting Started
 
-## Features
+First, run the development server:
 
-- **Dynamic Wallet Integration**: Connect wallets using Dynamic's authentication system
-- **Circle Smart Accounts**: Automatic smart account creation with ERC-4337 support
-- **Gas Sponsorship**: Built-in paymaster support for gasless transactions
-- **Type-Safe**: Full TypeScript support with viem integration
-
-## Setup
-
-1. Install dependencies:
 ```bash
-bun install
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-2. Environment variables are already configured in `.env`:
-   - `NEXT_PUBLIC_CIRCLE_CLIENT_KEY`: Circle API client key
-   - `NEXT_PUBLIC_CIRCLE_CLIENT_URL`: Circle RPC URL
-   - `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID`: Dynamic environment ID
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Development
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-Run the development server:
-```bash
-bun run dev
-```
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-Open [http://localhost:3000](http://localhost:3000) to see the application.
+## Learn More
 
-## Project Structure
+To learn more about Next.js, take a look at the following resources:
 
-```
-web/
-├── app/
-│   ├── layout.tsx          # Root layout with DynamicProvider
-│   ├── page.tsx            # Home page with ConnectWallet
-│   └── globals.css         # Global styles
-├── components/
-│   ├── ConnectWallet.tsx   # Main wallet connection component
-│   └── providers/
-│       └── DynamicProvider.tsx  # Dynamic context provider
-├── lib/
-│   └── circle-utils.ts     # Circle SDK utility functions
-└── .env                    # Environment variables
-```
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## How It Works
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-1. **Connect Wallet**: Users connect their wallet through Dynamic's authentication
-2. **Smart Account Creation**: Once connected, a Circle Smart Account is automatically created
-3. **Transaction Execution**: Send user operations with gas sponsorship through the smart account
+## Deploy on Vercel
 
-## Key Components
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-### ConnectWallet Component
-
-The main component ([components/ConnectWallet.tsx](components/ConnectWallet.tsx)) handles:
-- Wallet connection via Dynamic
-- Smart account initialization
-- Display of smart account address
-- Error handling and loading states
-
-### DynamicProvider
-
-Wraps the application with Dynamic's context ([components/providers/DynamicProvider.tsx](components/providers/DynamicProvider.tsx)):
-- Configures Dynamic SDK with environment ID
-- Enables Ethereum wallet connectors
-- Provides wallet context to child components
-
-### Circle Utils
-
-Helper functions for Circle SDK integration ([lib/circle-utils.ts](lib/circle-utils.ts)):
-- Client creation with modular transport
-- Smart account conversion from wallet client
-- Configuration management
-
-## Next Steps
-
-To send transactions with your smart account:
-
-1. Import the utilities:
-```typescript
-import { createSmartAccountFromWallet, getCircleConfig } from '@/lib/circle-utils';
-```
-
-2. Create a bundler client and send user operations:
-```typescript
-const { smartAccount, client } = await createSmartAccountFromWallet(
-  walletClient,
-  getCircleConfig()
-);
-
-// Send transaction with gas sponsorship
-const opHash = await bundlerClient.sendUserOperation({
-  account: smartAccount,
-  calls: [callData],
-  paymaster: true,
-});
-```
-
-## Resources
-
-- [Circle Modular Wallets Documentation](https://developers.circle.com/wallets/modular/web-sdk)
-- [Dynamic Documentation](https://docs.dynamic.xyz/)
-- [Viem Documentation](https://viem.sh/)
-
-## Technologies
-
-- **Next.js 16**: React framework
-- **TypeScript**: Type safety
-- **Tailwind CSS**: Styling
-- **Circle Modular SDK**: Smart account management
-- **Dynamic SDK**: Wallet authentication
-- **Viem**: Ethereum interactions
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ConnectWallet } from "@/components/ConnectWallet";
+import { useAccount, useWalletClient, usePublicClient, useSwitchChain } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getCurrentUser } from "@/lib/circle-passkey/storage";
-import { createSmartAccountFromPasskey } from "@/lib/circle-passkey/account";
-import { baseSepolia } from 'viem/chains';
 import { toast } from 'sonner';
 import { Loader2, CheckCircle, ArrowLeft, Zap, Activity, DollarSign } from 'lucide-react';
 import Link from 'next/link';
@@ -18,13 +17,10 @@ import {
   createAuthRequestMessage,
   createAuthVerifyMessageFromChallenge,
   createEIP712AuthMessageSigner,
-  createECDSAMessageSigner,
   createCreateChannelMessage,
   createResizeChannelMessage,
-  createCloseChannelMessage,
   parseAnyRPCResponse
 } from '@erc7824/nitrolite';
-import { createPublicClient, createWalletClient, http, type WalletClient , type Account } from 'viem';
 
 
 // Yellow Network Base Sepolia configuration
@@ -38,9 +34,7 @@ const YELLOW_CONFIG = {
 };
 
 export default function YellowNetworkPage() {
-  const [user, setUser] = useState<any>(null);
   const [isClient, setIsClient] = useState(false);
-  const [yellowWalletAddress, setYellowWalletAddress] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const sessionKeyRef = useRef<string | null>(null);
   const sessionSignerRef = useRef<any>(null);
@@ -48,9 +42,14 @@ export default function YellowNetworkPage() {
   const intentionalDisconnectRef = useRef(false);
   const authDataRef = useRef<{
     authParams?: any;
-    smartAccount?: any;
     walletClient?: any;
   }>({});
+
+  // Wagmi hooks
+  const { address, isConnected: isWalletConnected, chain } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { switchChain } = useSwitchChain();
 
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -72,13 +71,6 @@ export default function YellowNetworkPage() {
 
   useEffect(() => {
     setIsClient(true);
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
-
-    // Show smart account address (will be used for Yellow Network)
-    if (currentUser?.smartAccountAddress) {
-      setYellowWalletAddress(currentUser.smartAccountAddress);
-    }
   }, []);
 
   useEffect(() => {
@@ -107,7 +99,7 @@ export default function YellowNetworkPage() {
   };
 
   const handleConnect = async () => {
-    if (!user?.credential) {
+    if (!walletClient || !address) {
       toast.error('Please connect your wallet first');
       return;
     }
@@ -116,44 +108,48 @@ export default function YellowNetworkPage() {
       setIsConnecting(true);
       setConnectionStatus('Initializing...');
 
-      // Create smart account on Base Sepolia - will be used for ALL Yellow Network operations
-      const { smartAccount, client: publicClient } = await createSmartAccountFromPasskey(user.credential, baseSepolia);
+      // Check if on Base Sepolia, switch if not
+      if (chain?.id !== baseSepolia.id) {
+        setConnectionStatus('Switching to Base Sepolia...');
+        addLog('Switching to Base Sepolia...');
+        try {
+          await switchChain({ chainId: baseSepolia.id });
+          // Wait a bit for the chain switch to complete
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          toast.error('Please switch to Base Sepolia network');
+          setIsConnecting(false);
+          return;
+        }
+      }
 
-      addLog('Smart account created', { address: smartAccount.address, chain: 'Base Sepolia' });
+      addLog('Wallet connected', { address, chain: walletClient.chain?.name });
 
-      // Create wallet client with smart account
-      const smartAccountWalletClient = createWalletClient({
-        chain: baseSepolia,
-        transport: http(),
-        account: smartAccount,
-      }) as WalletClient;
+      // Store wallet address for use in operations
+      sessionKeyRef.current = address;
 
-      // Store smart account address for use in operations
-      sessionKeyRef.current = smartAccount.address;
-
-      // Create message signer for smart account
-      // This will use the smart account's signing method (WebAuthn/EIP-1271)
-      const smartAccountSigner = async (payload: any): Promise<string> => {
+      // Create message signer using wallet client
+      const walletSigner = async (payload: any): Promise<string> => {
         try {
           const message = JSON.stringify(payload);
-          const signature = await smartAccount.signMessage({ message });
-          console.log('Smart account signature:', signature, 'length:', signature.length);
+          const signature = await walletClient.signMessage({ message });
+          console.log('Wallet signature:', signature, 'length:', signature.length);
           return signature as string;
         } catch (error) {
-          console.error('Smart account signing failed:', error);
+          console.error('Wallet signing failed:', error);
           throw error;
         }
       };
 
-      sessionSignerRef.current = smartAccountSigner;
+      sessionSignerRef.current = walletSigner;
 
-      // Initialize Nitrolite client with smart account
-      setConnectionStatus('Creating Nitrolite client with smart account...');
+      // Initialize Nitrolite client with wallet client
+      setConnectionStatus('Creating Nitrolite client...');
       try {
         const client = new NitroliteClient({
           publicClient: publicClient as any,
-          walletClient: smartAccountWalletClient as any,
-          stateSigner: new WalletStateSigner(smartAccountWalletClient as any),
+          walletClient: walletClient as any,
+          stateSigner: new WalletStateSigner(walletClient as any),
           addresses: {
             custody: YELLOW_CONFIG.custody,
             adjudicator: YELLOW_CONFIG.adjudicator,
@@ -163,16 +159,13 @@ export default function YellowNetworkPage() {
         });
 
         nitroliteClientRef.current = client;
-        addLog('Nitrolite client initialized with smart account');
+        addLog('Nitrolite client initialized');
       } catch (error) {
         console.warn('Nitrolite client initialization failed (non-critical):', error);
         addLog('Nitrolite client init failed (non-critical)', { error: String(error) });
       }
 
-      addLog('Smart account ready for Yellow Network', {
-        address: smartAccount.address,
-        note: 'Using Circle Passkey smart account'
-      });
+      addLog('Wallet ready for Yellow Network', { address });
       setConnectionStatus('Connecting to Yellow Network...');
 
       // Connect to WebSocket
@@ -189,31 +182,29 @@ export default function YellowNetworkPage() {
         addLog('WebSocket connected');
 
         try {
-          // Send auth request using smart account
-          // Smart account will sign all operations
+          // Send auth request using wallet
+          const expiresAt = Math.floor(Date.now() / 1000) + 3600;
           const authParams = {
-            session_key: smartAccount.address as `0x${string}`, // Use smart account as session key
+            session_key: address as `0x${string}`,
             allowances: [{ asset: 'usdc', amount: '1000000000' }],
-            expires_at: BigInt(Math.floor(Date.now() / 1000) + 3600),
-            scope: 'circle-passkey-app',
+            expires_at: expiresAt,
+            scope: 'median-app',
           };
 
           const authRequestMsg = await createAuthRequestMessage({
-            address: smartAccount.address, // Smart account address
-            application: 'Circle Passkey Demo',
+            address: address,
+            application: 'Median',
             ...authParams,
           });
 
-          console.log('Sending auth request with smart account:', authRequestMsg);
+          console.log('Sending auth request:', authRequestMsg);
           ws.send(authRequestMsg);
-          addLog('Auth request sent', {
-            smartAccount: smartAccount.address,
-          });
+          addLog('Auth request sent', { address });
 
           // Store auth data for challenge response
           authDataRef.current = {
             authParams,
-            walletClient: smartAccountWalletClient,
+            walletClient,
           };
         } catch (error) {
           console.error('Auth request error:', error);
@@ -251,18 +242,23 @@ export default function YellowNetworkPage() {
                   throw new Error('Missing challenge or auth data');
                 }
 
-                setConnectionStatus('Signing challenge with smart account...');
-                addLog('Signing auth challenge with smart account', { challenge });
+                setConnectionStatus('Signing challenge...');
+                addLog('Signing auth challenge', { challenge });
 
-                // Create EIP-712 signer with smart account
-                // The smart account will produce a WebAuthn signature that Yellow Network should support via EIP-1271
+                // Create EIP-712 signer with wallet client
                 console.log('Auth params for EIP-712:', authParams);
-                console.log('Smart account address:', walletClient.account.address);
+                console.log('Wallet address:', walletClient.account.address);
+
+                // EIP-712 domain must match server expectations
+                // Try "ClearNode" as it's the official Yellow Network domain name
+                const eip712Domain = {
+                  name: 'ClearNode',
+                };
 
                 const eip712Signer = createEIP712AuthMessageSigner(
                   walletClient,
                   authParams,
-                  { name: 'Yellow Network' }
+                  eip712Domain
                 );
 
                 const verifyMsg = await createAuthVerifyMessageFromChallenge(
@@ -293,9 +289,9 @@ export default function YellowNetworkPage() {
                 // Check if WebSocket is still open before sending
                 const currentWs = wsRef.current;
                 if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-                  console.log('Sending verification with smart account signature:', verifyMsg);
+                  console.log('Sending verification:', verifyMsg);
                   currentWs.send(verifyMsg);
-                  addLog('Auth verification sent (smart account signature)');
+                  addLog('Auth verification sent');
                 } else {
                   const state = currentWs?.readyState === WebSocket.CONNECTING ? 'connecting' :
                                currentWs?.readyState === WebSocket.CLOSING ? 'closing' :
@@ -429,7 +425,7 @@ export default function YellowNetworkPage() {
   };
 
   const handleRequestFaucet = async () => {
-    if (!user?.smartAccountAddress) {
+    if (!address) {
       toast.error('No wallet address');
       return;
     }
@@ -441,7 +437,7 @@ export default function YellowNetworkPage() {
       const response = await fetch(YELLOW_CONFIG.faucet, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: user.smartAccountAddress }),
+        body: JSON.stringify({ address }),
       });
 
       if (response.ok) {
@@ -486,7 +482,7 @@ export default function YellowNetworkPage() {
   };
 
   const handleFundChannel = async () => {
-    if (!wsRef.current || !sessionSignerRef.current || !channelId || !user) {
+    if (!wsRef.current || !sessionSignerRef.current || !channelId || !address) {
       toast.error('Channel not ready');
       return;
     }
@@ -498,7 +494,7 @@ export default function YellowNetworkPage() {
       const resizeMsg = await createResizeChannelMessage(sessionSignerRef.current, {
         channel_id: channelId as `0x${string}`,
         allocate_amount: BigInt(fundAmount),
-        funds_destination: user.smartAccountAddress,
+        funds_destination: address,
       });
 
       console.log('Sending resize:', resizeMsg);
@@ -541,13 +537,13 @@ export default function YellowNetworkPage() {
     );
   }
 
-  if (!user) {
+  if (!isWalletConnected) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-primary/5 to-primary/10 p-4">
         <main className="w-full max-w-2xl">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold tracking-tight mb-2">Yellow Network Integration</h1>
-            <p className="text-muted-foreground">State channels for instant payments with Circle Passkey</p>
+            <p className="text-muted-foreground">State channels for instant payments</p>
           </div>
 
           <Card className="shadow-2xl border-primary/10">
@@ -556,10 +552,10 @@ export default function YellowNetworkPage() {
                 <div className="text-center">
                   <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
                   <p className="text-sm text-muted-foreground">
-                    Use biometrics to access your smart wallet
+                    Connect your wallet to get started
                   </p>
                 </div>
-                <ConnectWallet />
+                <ConnectButton />
               </div>
             </CardContent>
           </Card>
@@ -598,16 +594,18 @@ export default function YellowNetworkPage() {
                   <>
                     <div className="space-y-2">
                       <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Smart Account (On-chain)</p>
-                        <p className="text-sm font-mono break-all">{user.smartAccountAddress}</p>
+                        <p className="text-xs text-muted-foreground mb-1">Connected Wallet</p>
+                        <p className="text-sm font-mono break-all">{address}</p>
                       </div>
-                      {yellowWalletAddress && (
-                        <div className="p-3 bg-muted rounded-lg border-2 border-primary/20">
-                          <p className="text-xs text-muted-foreground mb-1">Yellow Network Wallet (Smart Account)</p>
-                          <p className="text-sm font-mono break-all">{yellowWalletAddress}</p>
-                          <p className="text-xs text-muted-foreground mt-1">🔐 Circle Passkey smart account with EIP-1271</p>
-                        </div>
-                      )}
+                      <div className={`p-3 rounded-lg ${chain?.id === baseSepolia.id ? 'bg-green-50 dark:bg-green-950/30' : 'bg-amber-50 dark:bg-amber-950/30'}`}>
+                        <p className="text-xs text-muted-foreground mb-1">Network</p>
+                        <p className="text-sm font-medium">{chain?.name || 'Unknown'}</p>
+                        {chain?.id !== baseSepolia.id && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            Will switch to Base Sepolia when connecting
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <Button
                       onClick={handleConnect}
@@ -667,7 +665,6 @@ export default function YellowNetworkPage() {
                       <div className="p-3 bg-muted rounded-lg">
                         <p className="text-xs text-muted-foreground mb-1">Active Wallet</p>
                         <p className="text-xs font-mono break-all">{sessionKeyRef.current}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Smart account signing with WebAuthn/EIP-1271</p>
                       </div>
                     )}
                   </>
