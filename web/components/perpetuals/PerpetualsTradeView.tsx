@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
 import {
   TrendingUp,
@@ -9,16 +9,13 @@ import {
   ChevronDown,
   BarChart3,
   Layers,
-  FileText,
-  Activity,
   Info,
   Settings,
   Plus,
   X,
   Maximize2,
+  Minimize2,
   Camera,
-  AlignVerticalSpaceAround,
-  Ruler,
   CandlestickChart as CandlestickIcon,
   FunctionSquare,
   Search,
@@ -39,6 +36,27 @@ const CHART_TABS = [
 ]
 
 const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "D", "W", "M"]
+
+const CHART_TYPES = [
+  { key: "candlestick", label: "Candles", icon: "🕯️" },
+  { key: "hollow", label: "Hollow Candles", icon: "◯" },
+  { key: "bar", label: "Bars", icon: "▌" },
+  { key: "line", label: "Line", icon: "📈" },
+  { key: "area", label: "Area", icon: "▤" },
+] as const
+
+type ChartType = typeof CHART_TYPES[number]["key"]
+
+const INDICATORS = [
+  { key: "SMA", label: "Simple MA", color: "#3b82f6", period: 20 },
+  { key: "EMA", label: "Exponential MA", color: "#8b5cf6", period: 20 },
+  { key: "BB", label: "Bollinger Bands", color: "#f59e0b", period: 20 },
+  { key: "RSI", label: "RSI", color: "#ec4899", period: 14 },
+  { key: "MACD", label: "MACD", color: "#10b981", period: 12 },
+  { key: "VOL", label: "Volume", color: "#6366f1", period: 0 },
+] as const
+
+type IndicatorKey = typeof INDICATORS[number]["key"]
 
 const POSITION_TABS = [
   { key: "positions", label: "Positions", count: 0 },
@@ -173,8 +191,14 @@ function formatPrice(value: number): string {
 export function PerpetualsTradeView() {
   const [chartTab, setChartTab] = useState("price")
   const [chartTimeframe, setChartTimeframe] = useState("5m")
+  const [chartType, setChartType] = useState<ChartType>("candlestick")
+  const [chartTypeDropdownOpen, setChartTypeDropdownOpen] = useState(false)
+  const [indicatorsDropdownOpen, setIndicatorsDropdownOpen] = useState(false)
+  const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set(["VOL"]))
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [positionsTab, setPositionsTab] = useState("positions")
   const [marketTab, setMarketTab] = useState("all")
+  const chartContainerRef = useRef<HTMLDivElement>(null)
   const [side, setSide] = useState<"long" | "short">("long")
   const [orderType, setOrderType] = useState<"market" | "limit">("market")
   const [leverage, setLeverage] = useState(25)
@@ -249,6 +273,81 @@ export function PerpetualsTradeView() {
       return next
     })
   }
+
+  const toggleIndicator = (key: IndicatorKey) => {
+    setActiveIndicators((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  // Screenshot function - captures the chart area
+  const handleScreenshot = useCallback(async () => {
+    const chartEl = chartContainerRef.current
+    if (!chartEl) return
+
+    try {
+      // Use html2canvas if available, otherwise use native canvas approach
+      const canvas = document.createElement("canvas")
+      const rect = chartEl.getBoundingClientRect()
+      canvas.width = rect.width * 2
+      canvas.height = rect.height * 2
+      
+      // Try to use the browser's native screenshot capability
+      // For a proper implementation, you'd use html2canvas library
+      const dataUrl = await new Promise<string>((resolve) => {
+        // Find the lightweight-charts canvas inside
+        const chartCanvas = chartEl.querySelector("canvas")
+        if (chartCanvas) {
+          resolve(chartCanvas.toDataURL("image/png"))
+        } else {
+          resolve("")
+        }
+      })
+
+      if (dataUrl) {
+        // Create download link
+        const link = document.createElement("a")
+        link.download = `${selectedTicker}-chart-${new Date().toISOString().slice(0, 10)}.png`
+        link.href = dataUrl
+        link.click()
+      }
+    } catch (err) {
+      console.error("Screenshot failed:", err)
+    }
+  }, [selectedTicker])
+
+  // Fullscreen toggle
+  const toggleFullscreen = useCallback(() => {
+    const chartEl = chartContainerRef.current
+    if (!chartEl) return
+
+    if (!document.fullscreenElement) {
+      chartEl.requestFullscreen().then(() => {
+        setIsFullscreen(true)
+      }).catch((err) => {
+        console.error("Fullscreen failed:", err)
+      })
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false)
+      })
+    }
+  }, [])
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange)
+  }, [])
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
@@ -614,26 +713,131 @@ export function PerpetualsTradeView() {
                 ))}
               </div>
               <div className="flex items-center gap-1">
-                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-                  <ChevronDown className="w-4 h-4" />
+                {/* Chart Type Selector */}
+                <div className="relative">
+                  <button 
+                    type="button"
+                    onClick={() => setChartTypeDropdownOpen(!chartTypeDropdownOpen)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-muted/50 transition-colors text-sm",
+                      chartTypeDropdownOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                    title="Chart Type"
+                  >
+                    <CandlestickIcon className="w-4 h-4" />
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  
+                  {chartTypeDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setChartTypeDropdownOpen(false)} aria-hidden />
+                      <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-lg border border-border bg-card shadow-xl overflow-hidden py-1">
+                        <div className="px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                          Chart Type
+                        </div>
+                        {CHART_TYPES.map((type) => (
+                          <button
+                            key={type.key}
+                            type="button"
+                            onClick={() => {
+                              setChartType(type.key)
+                              setChartTypeDropdownOpen(false)
+                            }}
+                            className={cn(
+                              "flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left",
+                              chartType === type.key && "bg-muted/30 text-foreground"
+                            )}
+                          >
+                            <span className="w-5 text-center">{type.icon}</span>
+                            <span>{type.label}</span>
+                            {chartType === type.key && (
+                              <span className="ml-auto text-blue-500">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                {/* Indicators Selector */}
+                <div className="relative">
+                  <button 
+                    type="button"
+                    onClick={() => setIndicatorsDropdownOpen(!indicatorsDropdownOpen)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-muted/50 transition-colors text-sm",
+                      indicatorsDropdownOpen || activeIndicators.size > 0 ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <FunctionSquare className="w-4 h-4" />
+                    <span>Indicators</span>
+                    {activeIndicators.size > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-medium">
+                        {activeIndicators.size}
+                      </span>
+                    )}
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  
+                  {indicatorsDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIndicatorsDropdownOpen(false)} aria-hidden />
+                      <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg border border-border bg-card shadow-xl overflow-hidden py-1">
+                        <div className="px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                          Technical Indicators
+                        </div>
+                        {INDICATORS.map((indicator) => (
+                          <button
+                            key={indicator.key}
+                            type="button"
+                            onClick={() => toggleIndicator(indicator.key)}
+                            className={cn(
+                              "flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left",
+                              activeIndicators.has(indicator.key) && "bg-muted/30"
+                            )}
+                          >
+                            <div 
+                              className="w-3 h-3 rounded-sm border-2" 
+                              style={{ 
+                                borderColor: indicator.color,
+                                backgroundColor: activeIndicators.has(indicator.key) ? indicator.color : "transparent"
+                              }}
+                            />
+                            <div className="flex-1">
+                              <span className="font-medium">{indicator.label}</span>
+                              <span className="text-muted-foreground ml-1 text-xs">({indicator.key})</span>
+                            </div>
+                            {activeIndicators.has(indicator.key) && (
+                              <span className="text-blue-500">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                {/* Fullscreen Button */}
+                <button 
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className={cn(
+                    "p-1.5 rounded-lg hover:bg-muted/50 transition-colors",
+                    isFullscreen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
-                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-                  <AlignVerticalSpaceAround className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-                  <Ruler className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-                  <CandlestickIcon className="w-4 h-4" />
-                </button>
-                <button className="flex items-center gap-1 px-2 py-1 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground text-xs">
-                  <FunctionSquare className="w-3.5 h-3.5" />
-                  Indicators
-                </button>
-                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground ml-2">
-                  <Maximize2 className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                
+                {/* Screenshot Button */}
+                <button 
+                  type="button"
+                  onClick={handleScreenshot}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  title="Take Screenshot"
+                >
                   <Camera className="w-4 h-4" />
                 </button>
               </div>
@@ -670,9 +874,36 @@ export function PerpetualsTradeView() {
               })()}
             </div>
             {/* Chart area - Candlestick with zoom, pan, crosshair */}
-            <div className="flex-1 min-h-[280px] px-4 pb-4">
+            <div className="flex-1 min-h-0 px-4 pb-4">
               {chartTab === "price" && (
-                <div className="h-full w-full rounded-xl bg-muted/5 overflow-hidden relative">
+                <div 
+                  ref={chartContainerRef}
+                  className={cn(
+                    "h-full w-full rounded-xl overflow-hidden relative",
+                    isFullscreen && "bg-background fixed inset-0 z-50 rounded-none p-4"
+                  )}
+                >
+                  {/* Fullscreen header when in fullscreen mode */}
+                  {isFullscreen && (
+                    <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+                      <div className="flex items-center gap-3">
+                        <TokenLogo ticker={selectedTicker} size="lg" />
+                        <div>
+                          <div className="text-lg font-bold">{selectedTicker}/USD</div>
+                          <div className="text-sm text-muted-foreground">
+                            ${formatPrice(selectedPrice || 0)}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                      >
+                        <Minimize2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
                   {candleLoading && candleData.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center bg-muted/20 z-10">
                       <div className="animate-pulse text-sm text-muted-foreground">Loading chart…</div>
@@ -685,10 +916,13 @@ export function PerpetualsTradeView() {
                   )}
                   <CandlestickChartComponent
                     data={candleData}
-                    dataKey={`${selectedTicker}-${chartTimeframe}`}
+                    dataKey={`${selectedTicker}-${chartTimeframe}-${chartType}`}
                     basePrice={selectedPrice || 100}
-                    height={320}
+                    height={isFullscreen ? window.innerHeight - 80 : undefined}
                     isDark={isDark}
+                    chartType={chartType}
+                    indicators={Array.from(activeIndicators)}
+                    className={isFullscreen ? "pt-16" : ""}
                   />
                 </div>
               )}
