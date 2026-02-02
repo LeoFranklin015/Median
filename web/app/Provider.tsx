@@ -5,6 +5,7 @@ import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { sepolia, baseSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { YellowNetworkProvider } from "@/lib/yellowNetwork";
 
@@ -20,9 +21,11 @@ export default function Provider({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <YellowNetworkProvider>{children}</YellowNetworkProvider>
-        </RainbowKitProvider>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem storageKey="median-theme">
+          <RainbowKitProvider>
+            <YellowNetworkProvider>{children}</YellowNetworkProvider>
+          </RainbowKitProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

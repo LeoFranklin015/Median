@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Menu, X, Wallet, Search } from "lucide-react"
 
 const navLinks = [
+  { name: "Trade", href: "/perpetuals" },
   { name: "Explore", href: "/markets" },
   { name: "Tools", href: "#" },
   { name: "Learn", href: "#" },

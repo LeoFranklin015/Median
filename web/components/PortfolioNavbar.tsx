@@ -10,7 +10,7 @@ const navigationLinks = [
   },
   {
     name: "Perpetuals",
-    href: "#perpetuals",
+    href: "/perpetuals",
   },
   {
     name: "How It Works",
