@@ -21,11 +21,17 @@ import {
   Ruler,
   CandlestickChart as CandlestickIcon,
   FunctionSquare,
+  Search,
+  Star,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react"
 import { CandlestickChartComponent, generateMockCandleData } from "./CandlestickChart"
 import { useBybitKline } from "@/hooks/useBybitKline"
+import { useBybitTickers, type TickerData } from "@/hooks/useBybitTickers"
 import { RainbowConnectButton } from "@/components/ConnectButton"
 import { cn } from "@/lib/utils"
+import { tickerToBybitSymbol } from "@/lib/bybit"
 
 const CHART_TABS = [
   { key: "price", label: "Price", icon: BarChart3 },
@@ -41,38 +47,79 @@ const POSITION_TABS = [
   { key: "claims", label: "Claims", count: 0 },
 ]
 
+const MARKET_TABS = [
+  { key: "all", label: "All Markets" },
+  { key: "favorites", label: "Favorites" },
+  { key: "layer1", label: "Layer 1" },
+  { key: "defi", label: "DeFi" },
+  { key: "meme", label: "Meme" },
+]
+
 const LEVERAGE_MARKS = [0.1, 1, 2, 5, 10, 25, 50, 100]
 
-const STATS = [
-  { label: "24h Volume", value: "$42.5M" },
-  { label: "Open Interest", value: "$128.3M" },
-  { label: "Available Liquidity", value: "$89.2M" },
-  { label: "Net Rate / 1h", value: "0.0012%" },
-]
+const TOKEN_NAMES: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  SOL: "Solana",
+  LINK: "Chainlink",
+  SUI: "Sui",
+  DOGE: "Dogecoin",
+  XRP: "Ripple",
+  AVAX: "Avalanche",
+  ATOM: "Cosmos",
+  ADA: "Cardano",
+  DOT: "Polkadot",
+  LTC: "Litecoin",
+  ARB: "Arbitrum",
+  OP: "Optimism",
+  PEPE: "Pepe",
+  WIF: "dogwifhat",
+  BONK: "Bonk",
+  SEI: "Sei",
+  APT: "Aptos",
+  FIL: "Filecoin",
+  NEAR: "NEAR",
+  INJ: "Injective",
+  TIA: "Celestia",
+}
 
-const PERP_MARKETS = [
-  { ticker: "SOL", name: "Solana", price: 212.4, change: 5.12 },
-  { ticker: "ETH", name: "Ethereum", price: 3842.5, change: 2.34 },
-  { ticker: "BTC", name: "Bitcoin", price: 97420, change: -0.89 },
-  { ticker: "AAPL", name: "Apple Inc", price: 228.9, change: 0.45 },
-  { ticker: "TSLA", name: "Tesla", price: 248.5, change: -1.2 },
-  { ticker: "NVDA", name: "NVIDIA", price: 142.5, change: -1.2 },
-  { ticker: "MSFT", name: "Microsoft", price: 378.9, change: 1.1 },
-  { ticker: "GOOGL", name: "Alphabet", price: 172.4, change: 0.8 },
-]
+const MAX_LEVERAGE: Record<string, number> = {
+  BTC: 100,
+  ETH: 100,
+  SOL: 100,
+  LINK: 100,
+  SUI: 50,
+  DOGE: 100,
+  XRP: 100,
+  default: 50,
+}
 
-function TokenLogo({ ticker }: { ticker: string }) {
+function TokenLogo({ ticker, size = "md" }: { ticker: string; size?: "sm" | "md" | "lg" }) {
   const colors: Record<string, string> = {
     SOL: "from-violet-400 to-cyan-400",
     ETH: "from-indigo-400 to-violet-500",
     BTC: "from-amber-400 to-orange-500",
     USDC: "from-blue-500 to-blue-600",
+    LINK: "from-blue-400 to-blue-600",
+    SUI: "from-cyan-400 to-blue-500",
+    DOGE: "from-yellow-400 to-amber-500",
+    XRP: "from-gray-400 to-gray-600",
+    AVAX: "from-red-400 to-red-600",
+    ARB: "from-blue-500 to-indigo-600",
+    OP: "from-red-500 to-red-600",
+    PEPE: "from-green-400 to-green-600",
+  }
+  const sizeClasses = {
+    sm: "w-5 h-5 text-[8px]",
+    md: "w-6 h-6 text-[10px]",
+    lg: "w-8 h-8 text-xs",
   }
   const bg = colors[ticker] || "from-[#FFD700] to-amber-500"
   return (
     <div
       className={cn(
-        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white bg-gradient-to-br shrink-0",
+        "rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-br shrink-0",
+        sizeClasses[size],
         bg
       )}
     >
@@ -81,27 +128,51 @@ function TokenLogo({ ticker }: { ticker: string }) {
   )
 }
 
+function formatVolume(value: number): string {
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`
+  return `$${value.toFixed(2)}`
+}
+
+function formatPrice(value: number): string {
+  if (value >= 10000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+  if (value >= 100) return value.toFixed(2)
+  if (value >= 1) return value.toFixed(4)
+  return value.toFixed(6)
+}
+
 export function PerpetualsTradeView() {
   const [chartTab, setChartTab] = useState("price")
   const [chartTimeframe, setChartTimeframe] = useState("5m")
   const [positionsTab, setPositionsTab] = useState("positions")
+  const [marketTab, setMarketTab] = useState("all")
   const [side, setSide] = useState<"long" | "short">("long")
   const [orderType, setOrderType] = useState<"market" | "limit">("market")
   const [leverage, setLeverage] = useState(25)
   const [payAmount, setPayAmount] = useState("")
   const [longAmount, setLongAmount] = useState("")
-  const [selectedMarket, setSelectedMarket] = useState(PERP_MARKETS[0])
+  const [selectedTicker, setSelectedTicker] = useState("SOL")
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false)
+  const [marketSearchQuery, setMarketSearchQuery] = useState("")
   const [tpSlEnabled, setTpSlEnabled] = useState(true)
   const [takeProfitPrice, setTakeProfitPrice] = useState("")
   const [stopLossPrice, setStopLossPrice] = useState("")
   const [executionDetailsOpen, setExecutionDetailsOpen] = useState(false)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   const isDark = mounted ? resolvedTheme === "dark" : true
 
-  const positive = selectedMarket.change >= 0
+  // Live tickers from Bybit
+  const { tickersList, getTickerByTicker, loading: tickersLoading } = useBybitTickers()
+
+  // Get selected market data
+  const selectedMarket = getTickerByTicker(selectedTicker)
+  const selectedPrice = selectedMarket?.price ?? 0
+  const selectedChange = selectedMarket?.changePct24h ?? 0
+  const positive = selectedChange >= 0
 
   const leverageSliderPercent = Math.min(100, ((leverage - 0.1) / 99.9) * 100)
   const nearestMark = LEVERAGE_MARKS.reduce((prev, curr) =>
@@ -113,45 +184,331 @@ export function PerpetualsTradeView() {
     loading: candleLoading,
     error: candleError,
     isSupported,
-  } = useBybitKline(selectedMarket.ticker, chartTimeframe)
+  } = useBybitKline(selectedTicker, chartTimeframe)
 
   const mockData = useMemo(
-    () => generateMockCandleData(selectedMarket.price, 120, selectedMarket.ticker.length),
-    [selectedMarket.price, selectedMarket.ticker]
+    () => generateMockCandleData(selectedPrice || 100, 120, selectedTicker.length),
+    [selectedPrice, selectedTicker]
   )
 
   const candleData = isSupported ? bybitData : mockData
 
+  // Filter markets based on search and tab
+  const filteredMarkets = useMemo(() => {
+    let markets = tickersList
+    if (marketTab === "favorites") {
+      markets = markets.filter((m) => favorites.has(m.ticker))
+    }
+    if (marketSearchQuery.trim()) {
+      const q = marketSearchQuery.toLowerCase()
+      markets = markets.filter(
+        (m) =>
+          m.ticker.toLowerCase().includes(q) ||
+          (TOKEN_NAMES[m.ticker]?.toLowerCase().includes(q) ?? false)
+      )
+    }
+    return markets
+  }, [tickersList, marketTab, marketSearchQuery, favorites])
+
+  const toggleFavorite = (ticker: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      if (next.has(ticker)) {
+        next.delete(ticker)
+      } else {
+        next.add(ticker)
+      }
+      return next
+    })
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      {/* Top Stats Bar */}
-      <div className="flex items-center gap-8 px-4 py-3 border-b border-border bg-background/50">
-        {STATS.map((stat) => (
-          <div key={stat.label} className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">{stat.label}</span>
-            <span className="text-sm font-semibold text-foreground tabular-nums font-mono">
-              {stat.value}
-            </span>
-          </div>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-xs font-medium text-blue-400">
-            ⟠
-          </div>
-          <span className="text-sm text-muted-foreground">Arbitrum</span>
+      {/* Top Stats Bar with Market Selector */}
+      <div className="flex items-center gap-4 px-4 py-2.5 border-b border-border bg-background/80 backdrop-blur-sm">
+        {/* Market Selector Dropdown */}
+        <div className="relative">
           <button
             type="button"
-            className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors font-medium"
+            onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
+            className="flex items-center gap-3 px-3 py-2 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors min-w-[180px]"
           >
-            Try Express Trading
+            <TokenLogo ticker={selectedTicker} size="md" />
+            <div className="text-left">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">{selectedTicker}/USD</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {selectedTicker}-USDC
+                </span>
+              </div>
+            </div>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground ml-auto transition-transform", marketDropdownOpen && "rotate-180")} />
+          </button>
+
+          {/* Market Dropdown */}
+          {marketDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMarketDropdownOpen(false)} aria-hidden />
+              <div className="absolute left-0 top-full mt-2 z-50 w-[500px] rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+                {/* Search */}
+                <div className="p-3 border-b border-border">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border">
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search Market"
+                      value={marketSearchQuery}
+                      onChange={(e) => setMarketSearchQuery(e.target.value)}
+                      className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                {/* Tabs */}
+                <div className="flex items-center gap-1 px-3 py-2 border-b border-border overflow-x-auto">
+                  {MARKET_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setMarketTab(tab.key)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors",
+                        marketTab === tab.key
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Markets List Header */}
+                <div className="grid grid-cols-6 gap-2 px-4 py-2 text-[10px] font-medium text-muted-foreground border-b border-border">
+                  <span className="col-span-2">MARKET</span>
+                  <span className="text-right">LAST PRICE</span>
+                  <span className="text-right">24H%</span>
+                  <span className="text-right">24H VOL.</span>
+                  <span className="text-right">OPEN INT.</span>
+                </div>
+                {/* Markets List */}
+                <div className="max-h-[400px] overflow-y-auto">
+                  {filteredMarkets.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      {tickersLoading ? "Loading markets..." : "No markets found"}
+                    </div>
+                  ) : (
+                    filteredMarkets.map((m) => (
+                      <div
+                        key={m.ticker}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setSelectedTicker(m.ticker)
+                          setMarketDropdownOpen(false)
+                          setMarketSearchQuery("")
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setSelectedTicker(m.ticker)
+                            setMarketDropdownOpen(false)
+                            setMarketSearchQuery("")
+                          }
+                        }}
+                        className={cn(
+                          "grid grid-cols-6 gap-2 w-full px-4 py-3 hover:bg-muted/30 transition-colors text-left items-center cursor-pointer",
+                          selectedTicker === m.ticker && "bg-muted/20"
+                        )}
+                      >
+                        <div className="col-span-2 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(m.ticker)
+                            }}
+                            className={cn(
+                              "p-0.5 rounded hover:bg-muted/50",
+                              favorites.has(m.ticker) ? "text-yellow-500" : "text-muted-foreground"
+                            )}
+                          >
+                            <Star className="w-3.5 h-3.5" fill={favorites.has(m.ticker) ? "currentColor" : "none"} />
+                          </button>
+                          <TokenLogo ticker={m.ticker} size="sm" />
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-sm">{m.ticker}/USD</span>
+                              <span className="text-[10px] px-1 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                                {MAX_LEVERAGE[m.ticker] || MAX_LEVERAGE.default}x
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-right text-sm font-medium tabular-nums">
+                          ${formatPrice(m.price)}
+                        </span>
+                        <span className={cn("text-right text-sm tabular-nums", m.changePct24h >= 0 ? "text-emerald-500" : "text-red-500")}>
+                          {m.changePct24h >= 0 ? "+" : ""}{m.changePct24h.toFixed(2)}%
+                        </span>
+                        <span className="text-right text-sm text-muted-foreground tabular-nums">
+                          {formatVolume(m.turnover24h)}
+                        </span>
+                        <span className="text-right text-sm text-muted-foreground tabular-nums">
+                          {formatVolume(m.openInterest)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Price + Change */}
+        <div className="flex items-baseline gap-3">
+          <span className="text-xl font-bold tabular-nums">
+            ${mounted && selectedPrice ? formatPrice(selectedPrice) : "—"}
+          </span>
+          {mounted && selectedMarket && (
+            <span className={cn("text-sm font-medium tabular-nums flex items-center gap-1", positive ? "text-emerald-500" : "text-red-500")}>
+              {positive ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+              {positive ? "+" : ""}{selectedChange.toFixed(2)}%
+            </span>
+          )}
+        </div>
+
+        {/* Live Stats */}
+        <div className="flex items-center gap-6 ml-4 text-xs">
+          <div className="flex flex-col">
+            <span className="text-muted-foreground">24H Volume</span>
+            <span className="font-semibold tabular-nums">{mounted && selectedMarket ? formatVolume(selectedMarket.turnover24h) : "—"}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-muted-foreground">Open Interest</span>
+            <span className="font-semibold tabular-nums">
+              {mounted && selectedMarket ? (
+                <span className="flex items-center gap-1">
+                  <span className="text-emerald-500">↗ {formatVolume(selectedMarket.openInterest * 0.43)}</span>
+                  <span className="text-muted-foreground">/</span>
+                  <span className="text-red-500">↘ {formatVolume(selectedMarket.openInterest * 0.57)}</span>
+                </span>
+              ) : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-muted-foreground">Funding Rate</span>
+            <span className={cn("font-semibold tabular-nums", selectedMarket && selectedMarket.fundingRate >= 0 ? "text-emerald-500" : "text-red-500")}>
+              {mounted && selectedMarket ? `${selectedMarket.fundingRate >= 0 ? "+" : ""}${selectedMarket.fundingRate.toFixed(4)}%` : "—"}
+            </span>
+          </div>
+        </div>
+
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          >
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Main Content - Gap between boxes, no partition lines */}
-      <div className="flex-1 flex min-h-0 gap-4 p-4 overflow-hidden">
-        {/* Left: Chart box + Positions box */}
-        <div className="flex-1 flex flex-col min-w-0 gap-4 overflow-hidden">
+      <div className="flex-1 flex min-h-0 gap-3 p-3 overflow-hidden">
+        {/* Left Markets Panel */}
+        <div className="w-[320px] flex-shrink-0 rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col">
+          {/* Search */}
+          <div className="p-3 border-b border-border">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search Market"
+                value={marketSearchQuery}
+                onChange={(e) => setMarketSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
+          {/* Tabs */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b border-border overflow-x-auto">
+            {MARKET_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setMarketTab(tab.key)}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors",
+                  marketTab === tab.key
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Header */}
+          <div className="grid grid-cols-4 gap-1 px-3 py-2 text-[10px] font-medium text-muted-foreground border-b border-border">
+            <span className="col-span-2">MARKET</span>
+            <span className="text-right">LAST PRICE</span>
+            <span className="text-right">24H%</span>
+          </div>
+          {/* Markets List */}
+          <div className="flex-1 overflow-y-auto">
+            {filteredMarkets.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                {tickersLoading ? "Loading markets..." : "No markets found"}
+              </div>
+            ) : (
+              filteredMarkets.map((m) => (
+                <div
+                  key={m.ticker}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedTicker(m.ticker)}
+                  onKeyDown={(e) => e.key === "Enter" && setSelectedTicker(m.ticker)}
+                  className={cn(
+                    "grid grid-cols-4 gap-1 w-full px-3 py-2.5 hover:bg-muted/30 transition-colors text-left items-center cursor-pointer",
+                    selectedTicker === m.ticker && "bg-muted/20 border-l-2 border-l-blue-500"
+                  )}
+                >
+                  <div className="col-span-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleFavorite(m.ticker)
+                      }}
+                      className={cn(
+                        "p-0.5 rounded hover:bg-muted/50",
+                        favorites.has(m.ticker) ? "text-yellow-500" : "text-muted-foreground/50"
+                      )}
+                    >
+                      <Star className="w-3 h-3" fill={favorites.has(m.ticker) ? "currentColor" : "none"} />
+                    </button>
+                    <TokenLogo ticker={m.ticker} size="sm" />
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-xs">{m.ticker}/USD</span>
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                        {MAX_LEVERAGE[m.ticker] || MAX_LEVERAGE.default}x
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-right text-xs font-medium tabular-nums">
+                    ${formatPrice(m.price)}
+                  </span>
+                  <span className={cn("text-right text-xs tabular-nums", m.changePct24h >= 0 ? "text-emerald-500" : "text-red-500")}>
+                    {m.changePct24h >= 0 ? "+" : ""}{m.changePct24h.toFixed(2)}%
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Center: Chart box + Positions box */}
+        <div className="flex-1 flex flex-col min-w-0 gap-3 overflow-hidden">
           {/* Chart Box - Single unified component */}
           <div className="flex-1 min-h-[320px] rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col">
             {/* Chart header row */}
@@ -221,7 +578,7 @@ export function PerpetualsTradeView() {
             </div>
             {/* Asset info line: SOL/USD · O H L C */}
             <div className="px-4 pb-2 flex items-center gap-2 text-xs font-mono flex-wrap">
-              <span className="font-semibold text-foreground">{selectedMarket.ticker}/USD</span>
+              <span className="font-semibold text-foreground">{selectedTicker}/USD</span>
               {mounted && isSupported && bybitData.length > 0 && (
                 <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 text-[10px] font-medium">
                   Live
@@ -231,17 +588,18 @@ export function PerpetualsTradeView() {
               {(() => {
                 const useLive = mounted && candleData.length > 0
                 const last = useLive ? candleData[candleData.length - 1] : null
-                const o = last?.open ?? selectedMarket.price
-                const h = last?.high ?? selectedMarket.price * 1.02
-                const l = last?.low ?? selectedMarket.price * 0.98
-                const c = last?.close ?? selectedMarket.price
-                const chg = ((c - o) / o) * 100
+                const fallbackPrice = selectedPrice || 100
+                const o = last?.open ?? fallbackPrice
+                const h = last?.high ?? fallbackPrice * 1.02
+                const l = last?.low ?? fallbackPrice * 0.98
+                const c = last?.close ?? fallbackPrice
+                const chg = o > 0 ? ((c - o) / o) * 100 : 0
                 return (
                   <>
-                    <span className="text-muted-foreground">O {o.toFixed(4)}</span>
-                    <span className="text-emerald-500">H {h.toFixed(4)}</span>
-                    <span className="text-red-500">L {l.toFixed(4)}</span>
-                    <span className="text-foreground">C {c.toFixed(4)}</span>
+                    <span className="text-muted-foreground">O {formatPrice(o)}</span>
+                    <span className="text-emerald-500">H {formatPrice(h)}</span>
+                    <span className="text-red-500">L {formatPrice(l)}</span>
+                    <span className="text-foreground">C {formatPrice(c)}</span>
                     <span className={chg >= 0 ? "text-emerald-500" : "text-red-500"}>
                       {chg >= 0 ? "+" : ""}{chg.toFixed(2)}%
                     </span>
@@ -265,8 +623,8 @@ export function PerpetualsTradeView() {
                   )}
                   <CandlestickChartComponent
                     data={candleData}
-                    dataKey={`${selectedMarket.ticker}-${chartTimeframe}`}
-                    basePrice={selectedMarket.price}
+                    dataKey={`${selectedTicker}-${chartTimeframe}`}
+                    basePrice={selectedPrice || 100}
                     height={320}
                     isDark={isDark}
                   />
@@ -285,7 +643,7 @@ export function PerpetualsTradeView() {
           </div>
 
           {/* Positions Box - Separate component */}
-          <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col min-h-[180px]">
+          <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col min-h-[160px]">
             <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
               <div className="flex items-center gap-1">
                 {POSITION_TABS.map((tab) => (
@@ -327,7 +685,7 @@ export function PerpetualsTradeView() {
         </div>
 
         {/* Right: Swap/Trade Box - Single unified component */}
-        <div className="w-[400px] flex-shrink-0 rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col overflow-y-auto">
+        <div className="w-[360px] flex-shrink-0 rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col overflow-y-auto">
           <div className="p-5 space-y-4">
             {/* Long / Short / Swap - Dark green active state */}
             <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-muted/30">
@@ -457,55 +815,19 @@ export function PerpetualsTradeView() {
                     onChange={(e) => setLongAmount(e.target.value.replace(/[^0-9.]/g, ""))}
                     className="w-full bg-transparent text-xl font-semibold text-foreground focus:outline-none placeholder:text-muted-foreground"
                   />
-                  <p className="text-xs text-muted-foreground mt-0.5">${longAmount && selectedMarket.price ? (parseFloat(longAmount) * selectedMarket.price).toFixed(2) : "0.00"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">${longAmount && selectedPrice ? (parseFloat(longAmount) * selectedPrice).toFixed(2) : "0.00"}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors min-w-0"
                 >
-                  <TokenLogo ticker={selectedMarket.ticker} />
-                  <span className="text-sm font-semibold truncate">{selectedMarket.ticker}/USD</span>
-                  <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0", marketDropdownOpen && "rotate-180")} />
+                  <TokenLogo ticker={selectedTicker} />
+                  <span className="text-sm font-semibold truncate">{selectedTicker}/USD</span>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                 </button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Leverage: {leverage.toFixed(2)}x</p>
-
-              {marketDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMarketDropdownOpen(false)} aria-hidden />
-                  <div className="absolute right-5 left-5 z-20 mt-2 rounded-xl border border-border bg-card shadow-2xl overflow-hidden py-1">
-                    {PERP_MARKETS.map((m) => (
-                      <button
-                        key={m.ticker}
-                        type="button"
-                        onClick={() => {
-                          setSelectedMarket(m)
-                          setMarketDropdownOpen(false)
-                        }}
-                        className={cn(
-                          "flex items-center justify-between w-full px-4 py-3 hover:bg-muted/50 transition-colors text-left",
-                          selectedMarket.ticker === m.ticker && "bg-muted/30"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <TokenLogo ticker={m.ticker} />
-                          <div>
-                            <p className="text-sm font-semibold">{m.ticker}/USD</p>
-                            <p className="text-xs text-muted-foreground">{m.name}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium tabular-nums">${m.price.toLocaleString()}</p>
-                          <p className={cn("text-xs tabular-nums", m.change >= 0 ? "text-emerald-500" : "text-red-500")}>
-                            {m.change >= 0 ? "+" : ""}{m.change}%
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
             </div>
 
             {/* Leverage Slider */}
@@ -549,7 +871,7 @@ export function PerpetualsTradeView() {
                 type="button"
                 className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-muted/20 border border-border hover:bg-muted/30 transition-colors"
               >
-                <span className="text-sm font-medium">{selectedMarket.ticker}-USDC</span>
+                <span className="text-sm font-medium">{selectedTicker}-USDC</span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
