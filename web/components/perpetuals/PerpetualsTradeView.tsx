@@ -26,6 +26,9 @@ import {
 import { CandlestickChartComponent, generateMockCandleData } from "./CandlestickChart"
 import { useBybitKline } from "@/hooks/useBybitKline"
 import { useBybitTickers, type TickerData } from "@/hooks/useBybitTickers"
+import { useFinnhubCandles } from "@/hooks/useFinnhubCandles"
+import { useStockQuotes } from "@/hooks/useStockQuotes"
+import { ASSETS } from "@/lib/sparkline-data"
 import { RainbowConnectButton } from "@/components/ConnectButton"
 import { cn } from "@/lib/utils"
 import { tickerToBybitSymbol } from "@/lib/bybit"
@@ -114,8 +117,16 @@ const MAX_LEVERAGE: Record<string, number> = {
 
 const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
 
+// Set of tokenized stock tickers (15 ERC20 stocks)
+const STOCK_TICKER_SET = new Set(ASSETS.map((a) => a.ticker.toUpperCase()))
+
 function getLogoUrl(ticker: string): string {
-  return `https://img.logokit.com/crypto/${ticker.toUpperCase()}?token=${LOGOKIT_TOKEN}`
+  const upper = ticker.toUpperCase()
+  // Stocks: use ticker endpoint, Crypto: use crypto endpoint
+  if (STOCK_TICKER_SET.has(upper)) {
+    return `https://img.logokit.com/ticker/${upper}?token=${LOGOKIT_TOKEN}`
+  }
+  return `https://img.logokit.com/crypto/${upper}?token=${LOGOKIT_TOKEN}`
 }
 
 function TokenLogo({ ticker, size = "md" }: { ticker: string; size?: "sm" | "md" | "lg" }) {
@@ -217,11 +228,55 @@ export function PerpetualsTradeView() {
   useEffect(() => setMounted(true), [])
   const isDark = mounted ? resolvedTheme === "dark" : true
 
-  // Live tickers from Bybit
+  // Live tickers from Bybit (crypto perps)
   const { tickersList, getTickerByTicker, loading: tickersLoading } = useBybitTickers()
 
-  // Get selected market data
-  const selectedMarket = getTickerByTicker(selectedTicker)
+  // Live tokenized stocks (15 ERC20 stocks) from Finnhub via /api/stocks/quotes
+  const { assets: stockAssets } = useStockQuotes()
+
+  // Map stock tickers into TickerData-like objects for use in perpetuals UI
+  const stockTickerMap = useMemo(() => {
+    const map = new Map<string, TickerData>()
+    for (const asset of stockAssets) {
+      const symbol = `${asset.ticker}USD`
+      map.set(symbol, {
+        ticker: asset.ticker,
+        symbol,
+        price: asset.price,
+        change24h: asset.change24h,
+        changePct24h: asset.change24hPercent,
+        high24h: asset.high24h ?? asset.price * 1.02,
+        low24h: asset.low24h ?? asset.price * 0.98,
+        volume24h: 0,
+        turnover24h: 0,
+        openInterest: 0,
+        fundingRate: 0,
+        nextFundingTime: 0,
+        lastUpdated: Date.now(),
+      })
+    }
+    return map
+  }, [stockAssets])
+
+  // Combined markets list: crypto + stocks
+  const combinedTickersList: TickerData[] = useMemo(() => {
+    const stocks = Array.from(stockTickerMap.values())
+    return [...tickersList, ...stocks].sort(
+      (a, b) => b.turnover24h - a.turnover24h || b.price - a.price
+    )
+  }, [tickersList, stockTickerMap])
+
+  // Identify whether the currently selected market is one of the 15 stocks
+  const stockTickers = useMemo(
+    () => new Set(stockAssets.map((a) => a.ticker)),
+    [stockAssets]
+  )
+  const isStock = stockTickers.has(selectedTicker)
+
+  // Get selected market data from Bybit first, then from stocks
+  const selectedMarketFromBybit = getTickerByTicker(selectedTicker)
+  const selectedMarketFromStocks = stockTickerMap.get(`${selectedTicker}USD`)
+  const selectedMarket = selectedMarketFromBybit ?? selectedMarketFromStocks
   const selectedPrice = selectedMarket?.price ?? 0
   const selectedChange = selectedMarket?.changePct24h ?? 0
   const positive = selectedChange >= 0
@@ -231,23 +286,44 @@ export function PerpetualsTradeView() {
     Math.abs(curr - leverage) < Math.abs(prev - leverage) ? curr : prev
   )
 
+  // Crypto candles from Bybit (real-time via REST + WebSocket)
   const {
     data: bybitData,
-    loading: candleLoading,
-    error: candleError,
+    loading: bybitCandleLoading,
+    error: bybitCandleError,
     isSupported,
   } = useBybitKline(selectedTicker, chartTimeframe)
+
+  // Stock candles from Finnhub (15 tokenized stocks)
+  const {
+    data: stockCandleData,
+    loading: stockCandleLoading,
+    error: stockCandleError,
+  } = useFinnhubCandles(selectedTicker, chartTimeframe, isStock)
 
   const mockData = useMemo(
     () => generateMockCandleData(selectedPrice || 100, 120, selectedTicker.length),
     [selectedPrice, selectedTicker]
   )
 
-  const candleData = isSupported ? bybitData : mockData
+  // Decide which candle source to use
+  let candleData = mockData
+  let candleLoading = false
+  let candleError: string | null = null
+
+  if (isStock) {
+    candleData = stockCandleData.length > 0 ? stockCandleData : mockData
+    candleLoading = stockCandleLoading && stockCandleData.length === 0
+    candleError = stockCandleError
+  } else {
+    candleData = isSupported ? bybitData : mockData
+    candleLoading = bybitCandleLoading && (!isSupported || bybitData.length === 0)
+    candleError = bybitCandleError
+  }
 
   // Filter markets based on search and tab
   const filteredMarkets = useMemo(() => {
-    let markets = tickersList
+    let markets = combinedTickersList
     if (marketTab === "favorites") {
       markets = markets.filter((m) => favorites.has(m.ticker))
     }
@@ -260,7 +336,7 @@ export function PerpetualsTradeView() {
       )
     }
     return markets
-  }, [tickersList, marketTab, marketSearchQuery, favorites])
+  }, [combinedTickersList, marketTab, marketSearchQuery, favorites])
 
   const toggleFavorite = (ticker: string) => {
     setFavorites((prev) => {
@@ -615,7 +691,7 @@ export function PerpetualsTradeView() {
             <span className="text-right">LAST PRICE</span>
             <span className="text-right">24H%</span>
           </div>
-          {/* Markets List */}
+          {/* Markets List - crypto + 15 tokenized stocks */}
           <div className="flex-1 overflow-y-auto">
             {filteredMarkets.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
@@ -845,7 +921,7 @@ export function PerpetualsTradeView() {
             {/* Asset info line: SOL/USD · O H L C */}
             <div className="px-4 pb-2 flex items-center gap-2 text-xs font-mono flex-wrap">
               <span className="font-semibold text-foreground">{selectedTicker}/USD</span>
-              {mounted && isSupported && bybitData.length > 0 && (
+              {mounted && ((!isStock && isSupported && bybitData.length > 0) || (isStock && stockCandleData.length > 0)) && (
                 <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 text-[10px] font-medium">
                   Live
                 </span>
