@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useTheme } from "next-themes"
 import {
   TrendingUp,
@@ -19,18 +19,10 @@ import {
   Camera,
   AlignVerticalSpaceAround,
   Ruler,
-  CandlestickChart,
+  CandlestickChart as CandlestickIcon,
   FunctionSquare,
 } from "lucide-react"
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-  CartesianGrid,
-  Tooltip,
-} from "recharts"
+import { CandlestickChartComponent, generateMockCandleData } from "./CandlestickChart"
 import { RainbowConnectButton } from "@/components/ConnectButton"
 import { cn } from "@/lib/utils"
 
@@ -49,11 +41,6 @@ const POSITION_TABS = [
 ]
 
 const LEVERAGE_MARKS = [0.1, 1, 2, 5, 10, 25, 50, 100]
-
-const SAMPLE_CHART_DATA = Array.from({ length: 48 }, (_, i) => ({
-  time: i,
-  value: 100 + Math.sin(i * 0.3) * 8 + i * 0.2 + Math.random() * 2,
-}))
 
 const STATS = [
   { label: "24h Volume", value: "$42.5M" },
@@ -114,12 +101,15 @@ export function PerpetualsTradeView() {
   const isDark = mounted ? resolvedTheme === "dark" : true
 
   const positive = selectedMarket.change >= 0
-  const chartGridStroke = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-  const chartTickFill = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"
 
   const leverageSliderPercent = Math.min(100, ((leverage - 0.1) / 99.9) * 100)
   const nearestMark = LEVERAGE_MARKS.reduce((prev, curr) =>
     Math.abs(curr - leverage) < Math.abs(prev - leverage) ? curr : prev
+  )
+
+  const candleData = useMemo(
+    () => generateMockCandleData(selectedMarket.price, 120, selectedMarket.ticker.length),
+    [selectedMarket.price, selectedMarket.ticker]
   )
 
   return (
@@ -205,7 +195,7 @@ export function PerpetualsTradeView() {
                   <Ruler className="w-4 h-4" />
                 </button>
                 <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-                  <CandlestickChart className="w-4 h-4" />
+                  <CandlestickIcon className="w-4 h-4" />
                 </button>
                 <button className="flex items-center gap-1 px-2 py-1 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground text-xs">
                   <FunctionSquare className="w-3.5 h-3.5" />
@@ -231,33 +221,16 @@ export function PerpetualsTradeView() {
                 {positive ? "+" : ""}{(selectedMarket.price * selectedMarket.change / 100).toFixed(4)} ({positive ? "+" : ""}{selectedMarket.change}%)
               </span>
             </div>
-            {/* Chart area */}
-            <div className="flex-1 min-h-[200px] px-4 pb-4">
+            {/* Chart area - Candlestick with zoom, pan, crosshair */}
+            <div className="flex-1 min-h-[280px] px-4 pb-4">
               {chartTab === "price" && (
-                <div className="h-full w-full rounded-xl bg-muted/10 p-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={SAMPLE_CHART_DATA} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#FFD700" stopOpacity={0.25} />
-                          <stop offset="100%" stopColor="#FFD700" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} vertical={false} />
-                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: chartTickFill }} axisLine={false} tickLine={false} />
-                      <YAxis orientation="right" tick={{ fontSize: 10, fill: chartTickFill }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(0)} domain={["dataMin - 5", "dataMax + 5"]} width={45} />
-                      <Tooltip
-                        content={({ active, payload }) =>
-                          active && payload?.[0] ? (
-                            <div className="bg-card border border-border px-3 py-2 rounded-lg shadow-xl">
-                              <p className="text-sm font-semibold">${payload[0].value?.toFixed(2)}</p>
-                            </div>
-                          ) : null
-                        }
-                      />
-                      <Area type="monotone" dataKey="value" stroke="#FFD700" strokeWidth={2} fill="url(#chartFill)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="h-full w-full rounded-xl bg-muted/5 overflow-hidden">
+                  <CandlestickChartComponent
+                    data={candleData}
+                    basePrice={selectedMarket.price}
+                    height={320}
+                    isDark={isDark}
+                  />
                 </div>
               )}
               {chartTab === "depth" && (
