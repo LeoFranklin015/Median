@@ -16,7 +16,7 @@ function TickerItem({ asset }: { asset: AssetWithQuote }) {
   const isPositive = asset.change24hPercent >= 0
 
   return (
-    <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white border border-zinc-200/80 shadow-sm hover:shadow-md hover:border-zinc-300/80 transition-all duration-200 min-w-[200px] cursor-default">
+    <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border shadow-sm hover:shadow-md hover:border-border/80 transition-all duration-200 min-w-[200px] cursor-default">
       <div
         className={cn(
           "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
@@ -26,15 +26,15 @@ function TickerItem({ asset }: { asset: AssetWithQuote }) {
         {asset.icon}
       </div>
       <div className="flex flex-col">
-        <span className="text-sm font-semibold text-zinc-900 whitespace-nowrap">
+        <span className="text-sm font-semibold text-foreground whitespace-nowrap">
           {asset.ticker}
         </span>
-        <span className="text-xs text-zinc-500 truncate max-w-[100px]">
+        <span className="text-xs text-muted-foreground truncate max-w-[100px]">
           {asset.name}
         </span>
       </div>
       <div className="flex flex-col items-end ml-auto">
-        <span className="text-sm font-semibold text-zinc-900 tabular-nums">
+        <span className="text-sm font-semibold text-foreground tabular-nums">
           ${formatPrice(asset.price)}
         </span>
         <span
@@ -58,15 +58,15 @@ function TickerItem({ asset }: { asset: AssetWithQuote }) {
 
 function TickerSkeleton() {
   return (
-    <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white border border-zinc-200/80 min-w-[200px]">
-      <div className="w-8 h-8 rounded-lg bg-zinc-100 animate-pulse" />
+    <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border min-w-[200px]">
+      <div className="w-8 h-8 rounded-lg bg-muted animate-pulse" />
       <div className="flex flex-col gap-1">
-        <div className="w-12 h-4 bg-zinc-100 rounded animate-pulse" />
-        <div className="w-16 h-3 bg-zinc-100 rounded animate-pulse" />
+        <div className="w-12 h-4 bg-muted rounded animate-pulse" />
+        <div className="w-16 h-3 bg-muted rounded animate-pulse" />
       </div>
       <div className="flex flex-col items-end ml-auto gap-1">
-        <div className="w-16 h-4 bg-zinc-100 rounded animate-pulse" />
-        <div className="w-12 h-3 bg-zinc-100 rounded animate-pulse" />
+        <div className="w-16 h-4 bg-muted rounded animate-pulse" />
+        <div className="w-12 h-3 bg-muted rounded animate-pulse" />
       </div>
     </div>
   )
@@ -81,7 +81,7 @@ export function MarketTickerBar() {
   // Show loading state
   if (loading && validAssets.length === 0) {
     return (
-      <div className="relative overflow-hidden border-b border-zinc-200/60 bg-zinc-50/50">
+      <div className="relative overflow-hidden border-b border-border bg-background/80">
         <div className="flex gap-6 py-4 px-8">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <TickerSkeleton key={i} />
@@ -97,18 +97,18 @@ export function MarketTickerBar() {
   }
 
   return (
-    <div className="relative overflow-hidden border-b border-zinc-200/60 bg-zinc-50/50">
+    <div className="relative overflow-hidden border-b border-border bg-background/80">
       {/* Live indicator */}
       {validAssets.some((a) => a.isLive) && (
-        <div className="absolute top-2 right-4 z-20 flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-medium">
+        <div className="absolute top-2 right-4 z-20 flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-medium">
           <Radio className="w-3 h-3 animate-pulse" />
           Live
         </div>
       )}
 
       {/* Gradient overlays */}
-      <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-zinc-50 via-zinc-50/90 to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-zinc-50 via-zinc-50/90 to-transparent z-10 pointer-events-none" />
+      <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background via-background/95 to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background via-background/95 to-transparent z-10 pointer-events-none" />
 
       {/* Scrolling ticker */}
       <motion.div

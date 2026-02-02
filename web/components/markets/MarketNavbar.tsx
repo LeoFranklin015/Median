@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Menu, X, Wallet, Search } from "lucide-react"
+import { ThemeToggle } from "@/components/ThemeToggle"
 
 const navLinks = [
   { name: "Trade", href: "/perpetuals" },
@@ -15,7 +16,7 @@ export function MarketNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-b border-zinc-200/80">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -26,11 +27,11 @@ export function MarketNavbar() {
             </Link>
             <div className="hidden md:block flex-1 max-w-sm">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Q Search assets"
-                  className="w-full pl-9 pr-4 py-2 rounded-lg bg-zinc-100 border border-transparent text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 focus:bg-white"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg bg-muted border border-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-muted focus:bg-background"
                 />
               </div>
             </div>
@@ -41,7 +42,7 @@ export function MarketNavbar() {
               <Link
                 key={link.name}
                 href={link.href}
-                className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors font-medium"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium"
               >
                 {link.name}
               </Link>
@@ -49,9 +50,12 @@ export function MarketNavbar() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="hidden sm:flex">
+              <ThemeToggle />
+            </div>
             <button
               type="button"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-200 hover:bg-zinc-300 text-zinc-900 text-sm font-medium transition-colors"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-sm font-medium transition-colors"
             >
               <Wallet className="w-4 h-4" />
               Connect Wallet
@@ -66,7 +70,7 @@ export function MarketNavbar() {
             <button
               type="button"
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden p-2 text-zinc-600 hover:text-zinc-900"
+              className="md:hidden p-2 text-muted-foreground hover:text-foreground"
               aria-label="Toggle menu"
             >
               {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -76,13 +80,13 @@ export function MarketNavbar() {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden border-t border-zinc-200 px-4 py-4 space-y-3 bg-white">
+        <div className="md:hidden border-t border-border px-4 py-4 space-y-3 bg-background">
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search assets"
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-zinc-100 text-zinc-900"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-muted text-foreground"
             />
           </div>
           {navLinks.map((link) => (
@@ -90,7 +94,7 @@ export function MarketNavbar() {
               key={link.name}
               href={link.href}
               onClick={() => setMobileOpen(false)}
-              className="block py-2 text-zinc-600 hover:text-zinc-900"
+              className="block py-2 text-muted-foreground hover:text-foreground"
             >
               {link.name}
             </Link>
@@ -98,7 +102,7 @@ export function MarketNavbar() {
           <div className="pt-4 border-t border-zinc-200 space-y-2">
             <button
               type="button"
-              className="flex items-center gap-2 w-full justify-center py-3 rounded-lg bg-zinc-200 text-zinc-900 text-sm font-medium"
+              className="flex items-center gap-2 w-full justify-center py-3 rounded-lg bg-muted text-foreground text-sm font-medium"
             >
               <Wallet className="w-4 h-4" />
               Connect Wallet

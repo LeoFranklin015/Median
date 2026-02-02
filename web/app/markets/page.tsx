@@ -10,7 +10,7 @@ export default function MarketsPage() {
   const { assets, loading, error, refetch } = useStockQuotes()
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-background">
       <MarketNavbar />
       <main className="pt-24 pb-16">
         <MarketTickerBar />
