@@ -94,8 +94,22 @@ const MAX_LEVERAGE: Record<string, number> = {
   default: 50,
 }
 
+const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
+
+function getLogoUrl(ticker: string): string {
+  return `https://img.logokit.com/crypto/${ticker.toUpperCase()}?token=${LOGOKIT_TOKEN}`
+}
+
 function TokenLogo({ ticker, size = "md" }: { ticker: string; size?: "sm" | "md" | "lg" }) {
-  const colors: Record<string, string> = {
+  const [imgError, setImgError] = useState(false)
+  
+  const sizeClasses = {
+    sm: "w-5 h-5",
+    md: "w-6 h-6",
+    lg: "w-8 h-8",
+  }
+  
+  const fallbackColors: Record<string, string> = {
     SOL: "from-violet-400 to-cyan-400",
     ETH: "from-indigo-400 to-violet-500",
     BTC: "from-amber-400 to-orange-500",
@@ -109,22 +123,36 @@ function TokenLogo({ ticker, size = "md" }: { ticker: string; size?: "sm" | "md"
     OP: "from-red-500 to-red-600",
     PEPE: "from-green-400 to-green-600",
   }
-  const sizeClasses = {
-    sm: "w-5 h-5 text-[8px]",
-    md: "w-6 h-6 text-[10px]",
-    lg: "w-8 h-8 text-xs",
+  
+  const textSizes = {
+    sm: "text-[8px]",
+    md: "text-[10px]",
+    lg: "text-xs",
   }
-  const bg = colors[ticker] || "from-[#FFD700] to-amber-500"
+  
+  if (imgError) {
+    const bg = fallbackColors[ticker] || "from-[#FFD700] to-amber-500"
+    return (
+      <div
+        className={cn(
+          "rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-br shrink-0",
+          sizeClasses[size],
+          textSizes[size],
+          bg
+        )}
+      >
+        {ticker.slice(0, 2)}
+      </div>
+    )
+  }
+  
   return (
-    <div
-      className={cn(
-        "rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-br shrink-0",
-        sizeClasses[size],
-        bg
-      )}
-    >
-      {ticker.slice(0, 2)}
-    </div>
+    <img
+      src={getLogoUrl(ticker)}
+      alt={`${ticker} logo`}
+      className={cn("rounded-full shrink-0 object-cover", sizeClasses[size])}
+      onError={() => setImgError(true)}
+    />
   )
 }
 
@@ -225,9 +253,9 @@ export function PerpetualsTradeView() {
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
       {/* Top Stats Bar with Market Selector */}
-      <div className="flex items-center gap-4 px-4 py-2.5 border-b border-border bg-background/80 backdrop-blur-sm">
+      <div className="flex items-center gap-4 px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
         {/* Market Selector Dropdown */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <button
             type="button"
             onClick={() => setMarketDropdownOpen(!marketDropdownOpen)}
@@ -364,8 +392,11 @@ export function PerpetualsTradeView() {
           )}
         </div>
 
+        {/* Vertical Separator */}
+        <div className="h-10 w-px bg-border flex-shrink-0" />
+
         {/* Price + Change */}
-        <div className="flex items-baseline gap-3">
+        <div className="flex items-baseline gap-3 flex-shrink-0">
           <span className="text-xl font-bold tabular-nums">
             ${mounted && selectedPrice ? formatPrice(selectedPrice) : "—"}
           </span>
@@ -377,28 +408,59 @@ export function PerpetualsTradeView() {
           )}
         </div>
 
+        {/* Vertical Separator */}
+        <div className="h-10 w-px bg-border flex-shrink-0" />
+
         {/* Live Stats */}
-        <div className="flex items-center gap-6 ml-4 text-xs">
-          <div className="flex flex-col">
-            <span className="text-muted-foreground">24H Volume</span>
+        <div className="flex items-center gap-5 flex-1 min-w-0 text-xs overflow-x-auto">
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">24H Volume</span>
             <span className="font-semibold tabular-nums">{mounted && selectedMarket ? formatVolume(selectedMarket.turnover24h) : "—"}</span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-muted-foreground">Open Interest</span>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">24H High</span>
+            <span className="font-semibold tabular-nums text-emerald-500">
+              {mounted && selectedMarket ? `$${formatPrice(selectedMarket.high24h)}` : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">24H Low</span>
+            <span className="font-semibold tabular-nums text-red-500">
+              {mounted && selectedMarket ? `$${formatPrice(selectedMarket.low24h)}` : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">Open Interest</span>
             <span className="font-semibold tabular-nums">
               {mounted && selectedMarket ? (
                 <span className="flex items-center gap-1">
-                  <span className="text-emerald-500">↗ {formatVolume(selectedMarket.openInterest * 0.43)}</span>
+                  <span className="text-emerald-500">↗{formatVolume(selectedMarket.openInterest * 0.43)}</span>
                   <span className="text-muted-foreground">/</span>
-                  <span className="text-red-500">↘ {formatVolume(selectedMarket.openInterest * 0.57)}</span>
+                  <span className="text-red-500">↘{formatVolume(selectedMarket.openInterest * 0.57)}</span>
                 </span>
               ) : "—"}
             </span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-muted-foreground">Funding Rate</span>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">Funding Rate</span>
             <span className={cn("font-semibold tabular-nums", selectedMarket && selectedMarket.fundingRate >= 0 ? "text-emerald-500" : "text-red-500")}>
               {mounted && selectedMarket ? `${selectedMarket.fundingRate >= 0 ? "+" : ""}${selectedMarket.fundingRate.toFixed(4)}%` : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">Index Price</span>
+            <span className="font-semibold tabular-nums">
+              {mounted && selectedPrice ? `$${formatPrice(selectedPrice * 0.9999)}` : "—"}
+            </span>
+          </div>
+          <div className="flex flex-col whitespace-nowrap">
+            <span className="text-muted-foreground text-[10px] mb-0.5">Available Liquidity</span>
+            <span className="font-semibold tabular-nums text-blue-400">
+              {mounted && selectedMarket ? (
+                <>
+                  ↗{formatVolume(selectedMarket.openInterest * 0.32)} / ↘{formatVolume(selectedMarket.openInterest * 0.28)}
+                </>
+              ) : "—"}
             </span>
           </div>
         </div>
