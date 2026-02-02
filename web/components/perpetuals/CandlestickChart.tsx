@@ -2,9 +2,8 @@
 
 /**
  * Professional candlestick chart with zoom, pan, crosshair, volume.
- * Pass real API data via the `data` prop when ready.
- * Expected format: { time, open, high, low, close, volume? }
- * - time: Unix timestamp (seconds) or "YYYY-MM-DD" string
+ * Supports live updates via update() when data changes incrementally.
+ * dataKey: reset chart when symbol/interval changes
  */
 import { useEffect, useRef, useCallback } from "react"
 import {
@@ -62,10 +61,10 @@ export function generateMockCandleData(
   return data
 }
 
-/** Convert OHLCData to lightweight-charts format */
+/** Convert OHLCData to lightweight-charts format. time must be number (Unix seconds). */
 function toChartFormat(data: OHLCData[]) {
   return data.map((d) => ({
-    time: d.time,
+    time: (typeof d.time === "number" ? d.time : Math.floor(Number(d.time))) as import("lightweight-charts").UTCTimestamp,
     open: d.open,
     high: d.high,
     low: d.low,
@@ -75,6 +74,7 @@ function toChartFormat(data: OHLCData[]) {
 
 type CandlestickChartProps = {
   data?: OHLCData[]
+  dataKey?: string
   basePrice?: number
   height?: number
   className?: string
@@ -83,6 +83,7 @@ type CandlestickChartProps = {
 
 export function CandlestickChartComponent({
   data: propData,
+  dataKey = "default",
   basePrice = 100,
   height = 400,
   className,
@@ -92,11 +93,11 @@ export function CandlestickChartComponent({
   const chartRef = useRef<IChartApi | null>(null)
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null)
-
+  const lastDataKeyRef = useRef<string>("")
   const data = propData ?? generateMockCandleData(basePrice, 100)
 
-  const initChart = useCallback(() => {
-    if (!containerRef.current || data.length === 0) return
+  const createChartInstance = useCallback(() => {
+    if (!containerRef.current) return null
 
     if (chartRef.current) {
       chartRef.current.remove()
@@ -151,8 +152,6 @@ export function CandlestickChartComponent({
       },
     })
 
-    chartRef.current = chart
-
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#22c55e",
       downColor: "#ef4444",
@@ -162,45 +161,75 @@ export function CandlestickChartComponent({
       wickUpColor: "#22c55e",
     })
 
-    candleSeriesRef.current = candleSeries
-    candleSeries.setData(toChartFormat(data))
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: "#26a69a",
+      priceFormat: { type: "volume" },
+      priceScaleId: "",
+    })
 
-    if (data.some((d) => d.volume)) {
-      const volumeData = data.map((d) => ({
-        time: d.time,
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.85, bottom: 0 },
+      borderVisible: false,
+    })
+
+    chartRef.current = chart
+    candleSeriesRef.current = candleSeries
+    volumeSeriesRef.current = volumeSeries
+    return { chart, candleSeries, volumeSeries }
+  }, [isDark])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    const keyChanged = lastDataKeyRef.current !== dataKey
+    if (keyChanged) {
+      lastDataKeyRef.current = dataKey
+      if (chartRef.current) {
+        chartRef.current.remove()
+        chartRef.current = null
+        candleSeriesRef.current = null
+        volumeSeriesRef.current = null
+      }
+    }
+
+    if (data.length === 0) return
+
+    const candleSeries = candleSeriesRef.current
+    const volumeSeries = volumeSeriesRef.current
+
+    if (keyChanged || !candleSeries) {
+      const created = createChartInstance()
+      if (!created) return
+      const { chart, candleSeries: cs, volumeSeries: vs } = created
+      const candleFmt = toChartFormat(data)
+      cs.setData(candleFmt)
+      const volData = data.map((d) => ({
+        time: (typeof d.time === "number" ? d.time : Math.floor(Number(d.time))) as import("lightweight-charts").UTCTimestamp,
         value: d.volume ?? 0,
         color: d.close >= d.open ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)",
       }))
-
-      const volumeSeries = chart.addSeries(HistogramSeries, {
-        color: "#26a69a",
-        priceFormat: { type: "volume" },
-        priceScaleId: "",
-      })
-
-      volumeSeries.priceScale().applyOptions({
-        scaleMargins: { top: 0.85, bottom: 0 },
-        borderVisible: false,
-      })
-
-      volumeSeriesRef.current = volumeSeries
-      volumeSeries.setData(volumeData)
+      vs.setData(volData)
+      chart.timeScale().fitContent()
+    } else {
+      const candleFmt = toChartFormat(data)
+      const volData = data.map((d) => ({
+        time: (typeof d.time === "number" ? d.time : Math.floor(Number(d.time))) as import("lightweight-charts").UTCTimestamp,
+        value: d.volume ?? 0,
+        color: d.close >= d.open ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)",
+      }))
+      candleSeries.setData(candleFmt)
+      volumeSeries.setData(volData)
     }
+  }, [data, dataKey, createChartInstance])
 
-    chart.timeScale().fitContent()
-
+  useEffect(() => {
     return () => {
-      chart.remove()
+      chartRef.current?.remove()
       chartRef.current = null
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
     }
-  }, [data, isDark])
-
-  useEffect(() => {
-    const cleanup = initChart()
-    return () => cleanup?.()
-  }, [initChart])
+  }, [dataKey])
 
   useEffect(() => {
     const handleResize = () => {

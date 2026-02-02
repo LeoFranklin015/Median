@@ -23,6 +23,7 @@ import {
   FunctionSquare,
 } from "lucide-react"
 import { CandlestickChartComponent, generateMockCandleData } from "./CandlestickChart"
+import { useBybitKline } from "@/hooks/useBybitKline"
 import { RainbowConnectButton } from "@/components/ConnectButton"
 import { cn } from "@/lib/utils"
 
@@ -107,10 +108,19 @@ export function PerpetualsTradeView() {
     Math.abs(curr - leverage) < Math.abs(prev - leverage) ? curr : prev
   )
 
-  const candleData = useMemo(
+  const {
+    data: bybitData,
+    loading: candleLoading,
+    error: candleError,
+    isSupported,
+  } = useBybitKline(selectedMarket.ticker, chartTimeframe)
+
+  const mockData = useMemo(
     () => generateMockCandleData(selectedMarket.price, 120, selectedMarket.ticker.length),
     [selectedMarket.price, selectedMarket.ticker]
   )
+
+  const candleData = isSupported ? bybitData : mockData
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
@@ -212,21 +222,50 @@ export function PerpetualsTradeView() {
             {/* Asset info line: SOL/USD · O H L C */}
             <div className="px-4 pb-2 flex items-center gap-2 text-xs font-mono flex-wrap">
               <span className="font-semibold text-foreground">{selectedMarket.ticker}/USD</span>
+              {mounted && isSupported && bybitData.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 text-[10px] font-medium">
+                  Live
+                </span>
+              )}
               <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">O {selectedMarket.price.toFixed(4)}</span>
-              <span className="text-emerald-500">H {(selectedMarket.price * 1.02).toFixed(4)}</span>
-              <span className="text-red-500">L {(selectedMarket.price * 0.98).toFixed(4)}</span>
-              <span className="text-foreground">C {selectedMarket.price.toFixed(4)}</span>
-              <span className={positive ? "text-emerald-500" : "text-red-500"}>
-                {positive ? "+" : ""}{(selectedMarket.price * selectedMarket.change / 100).toFixed(4)} ({positive ? "+" : ""}{selectedMarket.change}%)
-              </span>
+              {(() => {
+                const useLive = mounted && candleData.length > 0
+                const last = useLive ? candleData[candleData.length - 1] : null
+                const o = last?.open ?? selectedMarket.price
+                const h = last?.high ?? selectedMarket.price * 1.02
+                const l = last?.low ?? selectedMarket.price * 0.98
+                const c = last?.close ?? selectedMarket.price
+                const chg = ((c - o) / o) * 100
+                return (
+                  <>
+                    <span className="text-muted-foreground">O {o.toFixed(4)}</span>
+                    <span className="text-emerald-500">H {h.toFixed(4)}</span>
+                    <span className="text-red-500">L {l.toFixed(4)}</span>
+                    <span className="text-foreground">C {c.toFixed(4)}</span>
+                    <span className={chg >= 0 ? "text-emerald-500" : "text-red-500"}>
+                      {chg >= 0 ? "+" : ""}{chg.toFixed(2)}%
+                    </span>
+                  </>
+                )
+              })()}
             </div>
             {/* Chart area - Candlestick with zoom, pan, crosshair */}
             <div className="flex-1 min-h-[280px] px-4 pb-4">
               {chartTab === "price" && (
-                <div className="h-full w-full rounded-xl bg-muted/5 overflow-hidden">
+                <div className="h-full w-full rounded-xl bg-muted/5 overflow-hidden relative">
+                  {candleLoading && candleData.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/20 z-10">
+                      <div className="animate-pulse text-sm text-muted-foreground">Loading chart…</div>
+                    </div>
+                  )}
+                  {candleError && (
+                    <div className="absolute top-2 left-4 right-4 bg-destructive/10 text-destructive text-xs px-3 py-2 rounded-lg z-10">
+                      {candleError}
+                    </div>
+                  )}
                   <CandlestickChartComponent
                     data={candleData}
+                    dataKey={`${selectedMarket.ticker}-${chartTimeframe}`}
                     basePrice={selectedMarket.price}
                     height={320}
                     isDark={isDark}
