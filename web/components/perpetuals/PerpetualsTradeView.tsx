@@ -15,6 +15,12 @@ import {
   Settings,
   Plus,
   X,
+  Maximize2,
+  Camera,
+  AlignVerticalSpaceAround,
+  Ruler,
+  CandlestickChart,
+  FunctionSquare,
 } from "lucide-react"
 import {
   AreaChart,
@@ -31,9 +37,15 @@ import { cn } from "@/lib/utils"
 const CHART_TABS = [
   { key: "price", label: "Price", icon: BarChart3 },
   { key: "depth", label: "Depth", icon: Layers },
-  { key: "positions", label: "Positions", icon: FileText },
-  { key: "orders", label: "Orders", icon: Activity },
-  { key: "trades", label: "Trades", icon: Activity },
+]
+
+const CHART_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "D", "W", "M"]
+
+const POSITION_TABS = [
+  { key: "positions", label: "Positions", count: 0 },
+  { key: "orders", label: "Orders", count: 0 },
+  { key: "trades", label: "Trades", count: 0 },
+  { key: "claims", label: "Claims", count: 0 },
 ]
 
 const LEVERAGE_MARKS = [0.1, 1, 2, 5, 10, 25, 50, 100]
@@ -83,6 +95,8 @@ function TokenLogo({ ticker }: { ticker: string }) {
 
 export function PerpetualsTradeView() {
   const [chartTab, setChartTab] = useState("price")
+  const [chartTimeframe, setChartTimeframe] = useState("5m")
+  const [positionsTab, setPositionsTab] = useState("positions")
   const [side, setSide] = useState<"long" | "short">("long")
   const [orderType, setOrderType] = useState<"market" | "limit">("market")
   const [leverage, setLeverage] = useState(25)
@@ -134,39 +148,93 @@ export function PerpetualsTradeView() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left: Chart */}
-        <div className="flex-1 flex flex-col min-w-0 border-r border-border">
-          <div className="flex items-center gap-1 px-4 py-2 border-b border-border">
-            {CHART_TABS.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setChartTab(tab.key)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                    chartTab === tab.key
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                  {(tab.key === "positions" || tab.key === "orders") && (
-                    <span className="text-xs text-muted-foreground">0</span>
-                  )}
+      {/* Main Content - Gap between boxes, no partition lines */}
+      <div className="flex-1 flex min-h-0 gap-4 p-4 overflow-hidden">
+        {/* Left: Chart box + Positions box */}
+        <div className="flex-1 flex flex-col min-w-0 gap-4 overflow-hidden">
+          {/* Chart Box - Single unified component */}
+          <div className="flex-1 min-h-[320px] rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col">
+            {/* Chart header row */}
+            <div className="flex items-center justify-between gap-2 px-4 py-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                {CHART_TABS.map((tab) => {
+                  const Icon = tab.icon
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setChartTab(tab.key)}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                        chartTab === tab.key
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {CHART_TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf}
+                    type="button"
+                    onClick={() => setChartTimeframe(tf)}
+                    className={cn(
+                      "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                      chartTimeframe === tf
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    {tf}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                  <ChevronDown className="w-4 h-4" />
                 </button>
-              )
-            })}
-          </div>
-
-          <div className="flex-1 min-h-[300px] p-4">
-            {chartTab === "price" && (
-              <div className="h-full w-full rounded-xl bg-muted/20 border border-border p-4">
-                <div className="h-full min-h-[280px]">
+                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                  <AlignVerticalSpaceAround className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                  <Ruler className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                  <CandlestickChart className="w-4 h-4" />
+                </button>
+                <button className="flex items-center gap-1 px-2 py-1 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground text-xs">
+                  <FunctionSquare className="w-3.5 h-3.5" />
+                  Indicators
+                </button>
+                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground ml-2">
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {/* Asset info line: SOL/USD · O H L C */}
+            <div className="px-4 pb-2 flex items-center gap-2 text-xs font-mono flex-wrap">
+              <span className="font-semibold text-foreground">{selectedMarket.ticker}/USD</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground">O {selectedMarket.price.toFixed(4)}</span>
+              <span className="text-emerald-500">H {(selectedMarket.price * 1.02).toFixed(4)}</span>
+              <span className="text-red-500">L {(selectedMarket.price * 0.98).toFixed(4)}</span>
+              <span className="text-foreground">C {selectedMarket.price.toFixed(4)}</span>
+              <span className={positive ? "text-emerald-500" : "text-red-500"}>
+                {positive ? "+" : ""}{(selectedMarket.price * selectedMarket.change / 100).toFixed(4)} ({positive ? "+" : ""}{selectedMarket.change}%)
+              </span>
+            </div>
+            {/* Chart area */}
+            <div className="flex-1 min-h-[200px] px-4 pb-4">
+              {chartTab === "price" && (
+                <div className="h-full w-full rounded-xl bg-muted/10 p-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={SAMPLE_CHART_DATA} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <defs>
@@ -191,23 +259,63 @@ export function PerpetualsTradeView() {
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
+              )}
+              {chartTab === "depth" && (
+                <div className="h-full flex items-center justify-center rounded-xl bg-muted/10">
+                  <p className="text-sm text-muted-foreground">Market depth</p>
+                </div>
+              )}
+            </div>
+            <div className="px-4 pb-2 flex items-center gap-1 text-[10px] text-muted-foreground">
+              <div className="w-4 h-4 rounded bg-muted flex items-center justify-center text-[8px] font-bold">TV</div>
+              <span>TradingView</span>
+            </div>
+          </div>
+
+          {/* Positions Box - Separate component */}
+          <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col min-h-[180px]">
+            <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
+              <div className="flex items-center gap-1">
+                {POSITION_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setPositionsTab(tab.key)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                      positionsTab === tab.key
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    {tab.label} {tab.count}
+                  </button>
+                ))}
               </div>
-            )}
-            {(chartTab === "depth" || chartTab === "positions" || chartTab === "orders" || chartTab === "trades") && (
-              <div className="h-full flex items-center justify-center rounded-xl bg-muted/20 border border-border">
-                <p className="text-sm text-muted-foreground">
-                  {chartTab === "positions" && "No open positions"}
-                  {chartTab === "orders" && "No orders"}
-                  {chartTab === "trades" && "No trades"}
-                  {chartTab === "depth" && "Market depth"}
-                </p>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input type="checkbox" className="rounded border-border" />
+                Chart positions
+              </label>
+            </div>
+            <div className="flex-1 px-4 pb-4 overflow-auto">
+              <div className="grid grid-cols-7 gap-2 text-xs font-medium text-muted-foreground px-2 py-2 border-b border-border">
+                <span>POSITION</span>
+                <span>SIZE</span>
+                <span>NET VALUE</span>
+                <span>COLLATERAL</span>
+                <span>ENTRY PRICE</span>
+                <span>MARK PRICE</span>
+                <span>LIQ. PRICE</span>
               </div>
-            )}
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-muted-foreground">No open positions</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Right: Order Form - Killer UI */}
-        <div className="w-[420px] flex-shrink-0 flex flex-col border-l border-border bg-card/30 overflow-y-auto">
+        {/* Right: Swap/Trade Box - Single unified component */}
+        <div className="w-[400px] flex-shrink-0 rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col overflow-y-auto">
           <div className="p-5 space-y-4">
             {/* Long / Short / Swap - Dark green active state */}
             <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-muted/30">
@@ -536,8 +644,8 @@ export function PerpetualsTradeView() {
               <RainbowConnectButton />
             </div>
 
-            {/* Bottom Details */}
-            <div className="space-y-3 pt-4 border-t border-border">
+            {/* Bottom Details - same box, spaced */}
+            <div className="space-y-3 pt-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Liquidation Price</span>
                 <span className="font-medium tabular-nums">—</span>
