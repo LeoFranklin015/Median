@@ -162,7 +162,7 @@ export const WhyWeWinSection = () => {
                 >
                   <span
                     className="text-2xl lg:text-3xl font-semibold tracking-tight"
-                    style={{ color: "#146e96" }}
+                    style={{ color: "#FFD700" }}
                   >
                     {stat.value}
                   </span>
@@ -208,7 +208,7 @@ export const WhyWeWinSection = () => {
                     style={{
                       left: `${bar.left}%`,
                       maxWidth: "12px",
-                      background: `linear-gradient(180deg, rgba(20, 110, 150, 0.8) 0%, rgba(20, 110, 150, 0.2) 100%)`,
+                      background: `linear-gradient(180deg, rgba(255, 215, 0, 0.9) 0%, rgba(255, 215, 0, 0.3) 100%)`,
                     }}
                   />
                 ))}

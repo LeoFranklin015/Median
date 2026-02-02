@@ -3,8 +3,6 @@ import { ProductTeaserCard } from "@/components/ProductTeaserCard"
 import { WhyWeWinSection } from "@/components/WhyWeWinSection"
 import { PerpetualsSection } from "@/components/PerpetualsSection"
 import { OrderbookSection } from "@/components/OrderbookSection"
-import { PricingSection } from "@/components/PricingSection"
-import { FAQSection } from "@/components/FAQSection"
 import { Footer } from "@/components/Footer"
 
 export default function Page() {
@@ -15,8 +13,6 @@ export default function Page() {
       <WhyWeWinSection />
       <PerpetualsSection />
       <OrderbookSection />
-      <PricingSection />
-      <FAQSection />
       <Footer />
     </>
   )

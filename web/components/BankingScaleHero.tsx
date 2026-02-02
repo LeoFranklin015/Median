@@ -156,64 +156,31 @@ export const BankingScaleHero = () => {
           </div>
 
           <div className="col-span-12 md:col-span-6">
-            <div className="relative w-full h-[416px] -ml-[200px]">
-              <div className="absolute top-0 left-[302px] w-[680px] h-[416px] pointer-events-none">
-                <div className="relative w-full h-full">
-                  {dataPoints.map((point) => (
-                    <motion.div
-                      key={point.id}
-                      initial={{
-                        opacity: 0,
-                        height: 0,
-                      }}
-                      animate={
-                        isVisible
-                          ? {
-                              opacity: [0, 1, 1],
-                              height: [0, point.height, point.height],
-                            }
-                          : {}
-                      }
-                      transition={{
-                        duration: 2,
-                        delay: point.delay,
-                        ease: [0.5, 0, 0.01, 1],
-                      }}
-                      className="absolute w-1.5 rounded-[3px]"
-                      style={{
-                        left: `${point.left}px`,
-                        top: `${point.top}px`,
-                        background:
-                          point.direction === "down"
-                            ? "linear-gradient(rgb(176, 200, 196) 0%, rgb(176, 200, 196) 10%, rgba(156, 217, 93, 0.1) 40%, rgba(113, 210, 240, 0) 75%)"
-                            : "linear-gradient(to top, rgb(176, 200, 196) 0%, rgb(176, 200, 196) 10%, rgba(156, 217, 93, 0.1) 40%, rgba(113, 210, 240, 0) 75%)",
-                        backgroundColor: "rgba(22, 126, 108, 0.01)",
-                      }}
-                    >
-                      <motion.div
-                        initial={{
-                          opacity: 0,
-                        }}
-                        animate={
-                          isVisible
-                            ? {
-                                opacity: [0, 1],
-                              }
-                            : {}
-                        }
-                        transition={{
-                          duration: 0.3,
-                          delay: point.delay + 1.7,
-                        }}
-                        className="absolute -left-[1px] w-2 h-2 bg-[#167E6C] rounded-full"
-                        style={{
-                          top: point.direction === "down" ? "0px" : `${point.height - 8}px`,
-                        }}
-                      />
-                    </motion.div>
-                  ))}
+            <div className="relative w-full h-[416px] flex items-center justify-center">
+              <motion.div
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.6, ease: [0.21, 0.8, 0.35, 1] }}
+                className="relative w-full max-w-[720px] aspect-[16/9] rounded-3xl border border-zinc-800/70 bg-gradient-to-br from-zinc-900 via-slate-900 to-zinc-900 shadow-[0_24px_80px_rgba(0,0,0,0.65)] overflow-hidden"
+              >
+                <video
+                  src="/candles.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="h-full w-full object-cover"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+                <div className="absolute left-4 bottom-4 flex items-center gap-3 text-xs text-zinc-200/80 font-medium">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    Live candles
+                  </span>
+                  <span className="hidden sm:inline text-zinc-400">
+                    Real-time price action preview • Zoom & pan enabled in app
+                  </span>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
 
