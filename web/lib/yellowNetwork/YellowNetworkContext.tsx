@@ -481,6 +481,25 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
           const sessionObj = params.appSession || params.app_session || params;
           const rawSessionData = sessionObj.sessionData || sessionObj.session_data;
 
+          // Emit position_update events for perpetual positions
+          if (rawSessionData) {
+            try {
+              const parsedData = typeof rawSessionData === 'string'
+                ? JSON.parse(rawSessionData)
+                : rawSessionData;
+
+              // Check if this is a perpetual position update
+              if (parsedData.positionId) {
+                console.log('📈 Emitting position_update event:', parsedData);
+                window.dispatchEvent(new CustomEvent('position_update', {
+                  detail: parsedData
+                }));
+              }
+            } catch (e) {
+              // Ignore parse errors for position updates
+            }
+          }
+
           if (rawSessionData) {
             try {
               const sessionData = typeof rawSessionData === 'string'

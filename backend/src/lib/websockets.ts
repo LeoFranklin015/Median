@@ -423,11 +423,41 @@ class WebSocketService {
             const sessionData = JSON.parse(params.sessionData);
             console.log('📦 Processing session data:', sessionData);
 
-            // Avoid infinite loops - only process if user initiated "action" and not yet "filled"
+            // Check if this is a PERPETUAL position (has tradePair field, not market)
+            const isPerpetual = sessionData.positionId && sessionData.tradePair;
+
+            if (isPerpetual) {
+                // Skip already processed states
+                if (sessionData.status === "filled" || sessionData.status === "closed") {
+                    console.log('📦 Skipping already processed perpetual state:', sessionData.status);
+                    return;
+                }
+
+                // Handle PERPETUAL positions - open
+                if (sessionData.action === "open") {
+                    await this.handleOpenPerpPosition(params, sessionData);
+                    return;
+                }
+
+                // Handle PERPETUAL positions - close (entryPrice can be 0, so check !== undefined)
+                if (sessionData.action === "close" && sessionData.entryPrice !== undefined) {
+                    await this.handleClosePerpPosition(params, sessionData);
+                    return;
+                }
+
+                console.log('📦 Unhandled perpetual action:', sessionData.action);
+                return;
+            }
+
+            // SPOT TRADING: Avoid infinite loops - only process if user initiated "action" and not yet "filled"
             if (sessionData.action && !sessionData.executionStatus) {
-                console.log('🤖 Detected trade action, executing...');
+                console.log('🤖 Detected spot trade action, executing...');
 
                 const market = sessionData.market; // e.g., "AAPL/USDC"
+                if (!market) {
+                    console.log('📦 No market field, skipping spot trade processing');
+                    return;
+                }
                 const ticker = market.split('/')[0];
                 const userAmount = parseFloat(sessionData.amount || '0'); // Amount in atomic units or whatever format user sent
 
@@ -505,6 +535,182 @@ class WebSocketService {
         } catch (error) {
             console.error('❌ Error processing AS update:', error);
         }
+    }
+
+    // Helper to fetch price - tries Bybit for crypto, Finnhub for stocks
+    private async fetchPrice(ticker: string): Promise<number> {
+        // Known crypto tickers - use Bybit
+        const cryptoTickers = ['BTC', 'ETH', 'SOL', 'LINK', 'SUI', 'DOGE', 'XRP', 'AVAX', 'ATOM', 'ADA', 'DOT', 'LTC', 'ARB', 'OP', 'PEPE', 'WIF', 'BONK', 'SEI', 'APT', 'FIL', 'NEAR', 'INJ', 'TIA'];
+        const isCrypto = cryptoTickers.includes(ticker.toUpperCase());
+
+        if (isCrypto) {
+            // Use Bybit API for crypto
+            try {
+                const symbol = `${ticker.toUpperCase()}USDT`;
+                const response = await fetch(
+                    `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`
+                );
+                const data = await response.json() as { result?: { list?: Array<{ lastPrice?: string }> } };
+                const price = parseFloat(data.result?.list?.[0]?.lastPrice || '0');
+                if (price > 0) {
+                    console.log(`📈 Bybit price for ${ticker}: $${price}`);
+                    return price;
+                }
+            } catch (err) {
+                console.error('Failed to fetch Bybit price:', err);
+            }
+        }
+
+        // Try Finnhub for stocks
+        const apiKey = process.env.FINNHUB_API_KEY;
+        if (apiKey) {
+            try {
+                const response = await fetch(
+                    `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`
+                );
+                const data = await response.json() as { c: number };
+                if (data.c > 0) {
+                    console.log(`📈 Finnhub price for ${ticker}: $${data.c}`);
+                    return data.c;
+                }
+            } catch (err) {
+                console.error('Failed to fetch Finnhub price:', err);
+            }
+        }
+
+        // Fallback mock price
+        console.warn(`⚠️ Could not fetch price for ${ticker}, using mock price`);
+        return 100;
+    }
+
+    private async handleOpenPerpPosition(params: any, sessionData: any) {
+        console.log('📈 Processing OPEN perpetual position:', sessionData.positionId);
+
+        const ticker = sessionData.ticker;
+        const leverage = sessionData.leverage;
+        const amountAtomic = parseInt(sessionData.amount);
+        const collateral = amountAtomic / 1_000_000; // Convert to USDC
+        const positionType = sessionData.type; // "long" or "short"
+
+        // Fetch current price
+        const entryPrice = await this.fetchPrice(ticker);
+
+        // Calculate position details
+        const positionSize = (collateral * leverage) / entryPrice;
+
+        // Calculate liquidation price
+        // For long: liq = entry * (1 - 1/leverage + maintenance_margin)
+        // For short: liq = entry * (1 + 1/leverage - maintenance_margin)
+        const maintenanceMargin = 0.005; // 0.5%
+        const liquidationPrice = positionType === "long"
+            ? entryPrice * (1 - (1 / leverage) + maintenanceMargin)
+            : entryPrice * (1 + (1 / leverage) - maintenanceMargin);
+
+        // Submit filled state
+        const filledData = {
+            ...sessionData,
+            status: "filled",
+            entryPrice,
+            positionSize,
+            liquidationPrice,
+            filledAt: Date.now()
+        };
+
+        const appSessionId = params.appSessionId;
+        const allocations = params.participantAllocations?.map((p: any) => ({
+            participant: p.participant,
+            asset: p.asset,
+            amount: p.amount
+        })) || [];
+
+        await this.submitAppState(
+            appSessionId,
+            allocations,
+            RPCAppStateIntent.Operate,
+            filledData
+        );
+
+        console.log(`✅ Position ${sessionData.positionId} filled at $${entryPrice}`);
+    }
+
+    private async handleClosePerpPosition(params: any, sessionData: any) {
+        console.log('📉 Processing CLOSE perpetual position:', sessionData.positionId);
+
+        const ticker = sessionData.ticker;
+        const leverage = sessionData.leverage;
+        const amountAtomic = parseInt(sessionData.amount);
+        const collateral = amountAtomic / 1_000_000;
+        const positionType = sessionData.type;
+        const entryPrice = sessionData.entryPrice;
+        const userWallet = sessionData.userWallet;
+
+        // Fetch current/exit price
+        const exitPrice = await this.fetchPrice(ticker);
+
+        // Calculate PnL
+        // Long: PnL = collateral * leverage * (exitPrice - entryPrice) / entryPrice
+        // Short: PnL = collateral * leverage * (entryPrice - exitPrice) / entryPrice
+        let priceChange = 0;
+        let pnl = 0;
+        let pnlPercent = 0;
+
+        if (entryPrice > 0) {
+            priceChange = positionType === "long"
+                ? (exitPrice - entryPrice) / entryPrice
+                : (entryPrice - exitPrice) / entryPrice;
+            pnl = collateral * leverage * priceChange;
+            pnlPercent = priceChange * leverage * 100;
+        } else {
+            console.warn('⚠️ Entry price is 0, cannot calculate PnL');
+        }
+
+        const returnAmount = Math.max(0, collateral + pnl); // Can't go below 0 (liquidation)
+        const returnAmountAtomic = Math.floor(returnAmount * 1_000_000).toString();
+
+        console.log(`🧮 PnL Calculation:`);
+        console.log(`   Entry: $${entryPrice}, Exit: $${exitPrice}`);
+        console.log(`   Price change: ${(priceChange * 100).toFixed(2)}%`);
+        console.log(`   Leveraged PnL: ${pnlPercent.toFixed(2)}%`);
+        console.log(`   Collateral: $${collateral}, PnL: $${pnl.toFixed(2)}`);
+        console.log(`   Return: $${returnAmount.toFixed(2)}`);
+
+        // Submit closed state
+        const closedData = {
+            ...sessionData,
+            status: "closed",
+            exitPrice,
+            pnl: pnl.toFixed(2),
+            pnlPercent: pnlPercent.toFixed(2),
+            returnAmount: returnAmountAtomic,
+            closedAt: Date.now()
+        };
+
+        const appSessionId = params.appSessionId;
+        const allocations = params.participantAllocations?.map((p: any) => ({
+            participant: p.participant,
+            asset: p.asset,
+            amount: p.amount
+        })) || [];
+
+        await this.submitAppState(
+            appSessionId,
+            allocations,
+            RPCAppStateIntent.Operate,
+            closedData
+        );
+
+        // Transfer return amount to user
+        if (returnAmount > 0) {
+            console.log(`💸 Transferring $${returnAmount.toFixed(2)} USDC to ${userWallet}`);
+            await this.transfer(userWallet, [
+                {
+                    asset: 'usdc',
+                    amount: returnAmount.toString() // Human-readable format
+                }
+            ]);
+        }
+
+        console.log(`✅ Position ${sessionData.positionId} closed. PnL: $${pnl.toFixed(2)}`);
     }
 
     private async handleTransfer(message: RPCResponse) {

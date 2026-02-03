@@ -22,16 +22,40 @@ import {
   Star,
   ArrowUpRight,
   ArrowDownRight,
+  Loader2,
 } from "lucide-react"
+import { v4 as uuidv4 } from "uuid"
 import { CandlestickChartComponent, generateMockCandleData } from "./CandlestickChart"
 import { useBybitKline } from "@/hooks/useBybitKline"
 import { useBybitTickers, type TickerData } from "@/hooks/useBybitTickers"
 import { useFinnhubCandles } from "@/hooks/useFinnhubCandles"
 import { useStockQuotes } from "@/hooks/useStockQuotes"
 import { ASSETS } from "@/lib/sparkline-data"
-import { RainbowConnectButton } from "@/components/ConnectButton"
 import { cn } from "@/lib/utils"
-import { tickerToBybitSymbol } from "@/lib/bybit"
+import { useYellowNetwork } from "@/lib/yellowNetwork/YellowNetworkContext"
+import { useAccount } from "wagmi"
+import { toast } from "sonner"
+
+// Counterparty address for perpetuals trading
+const COUNTERPARTY_ADDRESS = "0x4888Eb840a7Ca93F49C9be3dD95Fc0EdA25bF0c6"
+
+// Position type definition
+interface Position {
+  positionId: string
+  appSessionId: string
+  type: "long" | "short"
+  leverage: number
+  amount: string
+  tradePair: string
+  ticker: string
+  entryPrice: number
+  positionSize: number
+  liquidationPrice: number
+  status: "pending" | "filled" | "closing" | "closed"
+  timestamp: number
+  pnl?: number
+  currentPrice?: number
+}
 
 const CHART_TABS = [
   { key: "price", label: "Price", icon: BarChart3 },
@@ -228,6 +252,210 @@ export function PerpetualsTradeView() {
   useEffect(() => setMounted(true), [])
   const isDark = mounted ? resolvedTheme === "dark" : true
 
+  // Yellow Network integration
+  const {
+    isConnected,
+    isAuthenticated,
+    connect,
+    createAppSession,
+    submitAppState,
+    unifiedBalances,
+    transfer
+  } = useYellowNetwork()
+  const { address } = useAccount()
+
+  // Position state management
+  const [positions, setPositions] = useState<Position[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  // Load positions from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('perpetual_positions')
+    if (saved) {
+      try {
+        setPositions(JSON.parse(saved))
+      } catch (e) {
+        console.error('Failed to load positions:', e)
+      }
+    }
+  }, [])
+
+  // Save positions to localStorage on change
+  useEffect(() => {
+    if (positions.length > 0 || localStorage.getItem('perpetual_positions')) {
+      localStorage.setItem('perpetual_positions', JSON.stringify(positions))
+    }
+  }, [positions])
+
+  // Listen for position updates from backend via YellowNetwork context
+  useEffect(() => {
+    const handlePositionUpdate = (event: CustomEvent) => {
+      const data = event.detail
+      console.log('📈 Position update received:', data)
+
+      setPositions(prev => prev.map(pos => {
+        if (pos.positionId === data.positionId) {
+          return {
+            ...pos,
+            status: data.status,
+            entryPrice: data.entryPrice || pos.entryPrice,
+            positionSize: data.positionSize || pos.positionSize,
+            liquidationPrice: data.liquidationPrice || pos.liquidationPrice,
+            pnl: data.pnl ? parseFloat(data.pnl) : pos.pnl,
+            currentPrice: data.exitPrice || pos.currentPrice
+          }
+        }
+        return pos
+      }))
+
+      // Remove closed positions after delay and show toast
+      if (data.status === "closed") {
+        setTimeout(() => {
+          setPositions(prev => prev.filter(p => p.positionId !== data.positionId))
+          toast.success(`Position closed! PnL: $${data.pnl}`)
+        }, 2000)
+      }
+    }
+
+    window.addEventListener('position_update', handlePositionUpdate as EventListener)
+    return () => window.removeEventListener('position_update', handlePositionUpdate as EventListener)
+  }, [])
+
+  // Handle opening a new position
+  const handleOpenPosition = useCallback(async () => {
+    if (!isConnected || !isAuthenticated) {
+      await connect()
+      return
+    }
+
+    if (!address) {
+      toast.error("Wallet not connected")
+      return
+    }
+
+    const amount = parseFloat(payAmount)
+    if (!amount || amount <= 0) {
+      toast.error("Enter a valid amount")
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      // Generate unique position ID
+      const positionId = `pos_${uuidv4().slice(0, 8)}`
+
+      // Convert to atomic units (USDC = 6 decimals)
+      const amountAtomic = BigInt(Math.floor(amount * 1e6)).toString()
+
+      // Create app session
+      toast.info("Creating position...")
+      const participants = [address, COUNTERPARTY_ADDRESS]
+      const initialAllocations = [
+        { participant: address, asset: "usdc", amount: "0" },
+        { participant: COUNTERPARTY_ADDRESS, asset: "usdc", amount: "0" }
+      ]
+
+      const { appSessionId } = await createAppSession(
+        participants,
+        initialAllocations,
+        "Median App"
+      )
+
+      // Submit open position state
+      const sessionData = {
+        positionId,
+        type: side, // "long" or "short"
+        leverage,
+        amount: amountAtomic,
+        tradePair: `${selectedTicker}/USD`,
+        ticker: selectedTicker,
+        userWallet: address,
+        action: "open",
+        timestamp: Date.now()
+      }
+
+      await submitAppState(appSessionId, initialAllocations, "operate", sessionData)
+
+      // Transfer collateral to counterparty
+      toast.info("Transferring collateral...")
+      await transfer(COUNTERPARTY_ADDRESS, [
+        { asset: "usdc", amount: amount.toString() }
+      ])
+
+      // Add pending position to local state
+      setPositions(prev => [...prev, {
+        positionId,
+        appSessionId,
+        type: side,
+        leverage,
+        amount: amountAtomic,
+        tradePair: `${selectedTicker}/USD`,
+        ticker: selectedTicker,
+        entryPrice: 0, // Will be updated by backend
+        positionSize: 0,
+        liquidationPrice: 0,
+        status: "pending",
+        timestamp: Date.now()
+      }])
+
+      toast.success(`${side === "long" ? "Long" : "Short"} position opened!`)
+      setPayAmount("")
+      setLongAmount("")
+
+    } catch (error) {
+      console.error("Failed to open position:", error)
+      toast.error(`Failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [isConnected, isAuthenticated, connect, address, payAmount, side, leverage, selectedTicker, createAppSession, submitAppState, transfer])
+
+  // Handle closing a position
+  const handleClosePosition = useCallback(async (position: Position) => {
+    if (!address) return
+
+    setIsProcessing(true)
+    try {
+      toast.info("Closing position...")
+
+      // Submit close position state
+      const sessionData = {
+        positionId: position.positionId,
+        type: position.type,
+        leverage: position.leverage,
+        amount: position.amount,
+        tradePair: position.tradePair,
+        ticker: position.ticker,
+        userWallet: address,
+        entryPrice: position.entryPrice,
+        action: "close",
+        timestamp: Date.now()
+      }
+
+      const allocations = [
+        { participant: address, asset: "usdc", amount: "0" },
+        { participant: COUNTERPARTY_ADDRESS, asset: "usdc", amount: "0" }
+      ]
+
+      await submitAppState(position.appSessionId, allocations, "operate", sessionData)
+
+      // Update position status locally
+      setPositions(prev => prev.map(p =>
+        p.positionId === position.positionId
+          ? { ...p, status: "closing" as const }
+          : p
+      ))
+
+      toast.success("Position closing...")
+
+    } catch (error) {
+      console.error("Failed to close position:", error)
+      toast.error(`Failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [address, submitAppState])
+
   // Live tickers from Bybit (crypto perps)
   const { tickersList, getTickerByTicker, loading: tickersLoading } = useBybitTickers()
 
@@ -280,6 +508,18 @@ export function PerpetualsTradeView() {
   const selectedPrice = selectedMarket?.price ?? 0
   const selectedChange = selectedMarket?.changePct24h ?? 0
   const positive = selectedChange >= 0
+
+  // Calculate position size when pay amount, leverage, or price changes
+  useEffect(() => {
+    if (payAmount && selectedPrice > 0) {
+      const usdcAmount = parseFloat(payAmount) || 0
+      // Position size = (USDC amount * leverage) / price
+      const positionSize = (usdcAmount * leverage) / selectedPrice
+      setLongAmount(positionSize > 0 ? positionSize.toFixed(6) : "")
+    } else {
+      setLongAmount("")
+    }
+  }, [payAmount, leverage, selectedPrice])
 
   const leverageSliderPercent = Math.min(100, ((leverage - 0.1) / 99.9) * 100)
   const nearestMark = LEVERAGE_MARKS.reduce((prev, curr) =>
@@ -1018,21 +1258,27 @@ export function PerpetualsTradeView() {
           <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden flex flex-col min-h-[160px]">
             <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
               <div className="flex items-center gap-1">
-                {POSITION_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setPositionsTab(tab.key)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
-                      positionsTab === tab.key
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    {tab.label} {tab.count}
-                  </button>
-                ))}
+                {POSITION_TABS.map((tab) => {
+                  // Dynamic count for positions tab
+                  const count = tab.key === "positions"
+                    ? positions.filter(p => p.status !== "closed").length
+                    : tab.count
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setPositionsTab(tab.key)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                        positionsTab === tab.key
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      {tab.label} {count}
+                    </button>
+                  )
+                })}
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
                 <input type="checkbox" className="rounded border-border" />
@@ -1040,18 +1286,66 @@ export function PerpetualsTradeView() {
               </label>
             </div>
             <div className="flex-1 px-4 pb-4 overflow-auto">
-              <div className="grid grid-cols-7 gap-2 text-xs font-medium text-muted-foreground px-2 py-2 border-b border-border">
+              <div className="grid grid-cols-8 gap-2 text-xs font-medium text-muted-foreground px-2 py-2 border-b border-border">
                 <span>POSITION</span>
                 <span>SIZE</span>
-                <span>NET VALUE</span>
-                <span>COLLATERAL</span>
+                <span>LEVERAGE</span>
                 <span>ENTRY PRICE</span>
                 <span>MARK PRICE</span>
                 <span>LIQ. PRICE</span>
+                <span>PNL</span>
+                <span>ACTION</span>
               </div>
-              <div className="flex items-center justify-center py-12">
-                <p className="text-sm text-muted-foreground">No open positions</p>
-              </div>
+
+              {positions.filter(p => p.status !== "closed").length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <p className="text-sm text-muted-foreground">No open positions</p>
+                </div>
+              ) : (
+                positions.filter(p => p.status !== "closed").map((pos) => (
+                  <div key={pos.positionId} className="grid grid-cols-8 gap-2 px-2 py-3 border-b border-border items-center">
+                    <div className="flex items-center gap-2">
+                      <TokenLogo ticker={pos.ticker} size="sm" />
+                      <div>
+                        <span className="font-medium text-sm">{pos.ticker}/USD</span>
+                        <span className={cn(
+                          "ml-1 text-xs px-1.5 py-0.5 rounded",
+                          pos.type === "long" ? "bg-emerald-500/20 text-emerald-500" : "bg-red-500/20 text-red-500"
+                        )}>
+                          {pos.type.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-sm tabular-nums">${(parseInt(pos.amount) / 1e6).toFixed(2)}</span>
+                    <span className="text-sm tabular-nums">{pos.leverage}x</span>
+                    <span className="text-sm tabular-nums">
+                      {pos.status === "pending" ? (
+                        <span className="text-muted-foreground animate-pulse">Loading...</span>
+                      ) : (
+                        `$${pos.entryPrice.toFixed(2)}`
+                      )}
+                    </span>
+                    <span className="text-sm tabular-nums">${pos.currentPrice?.toFixed(2) || "—"}</span>
+                    <span className="text-sm tabular-nums text-red-500">
+                      {pos.status === "pending" ? "—" : `$${pos.liquidationPrice.toFixed(2)}`}
+                    </span>
+                    <span className={cn(
+                      "text-sm tabular-nums font-medium",
+                      (pos.pnl || 0) >= 0 ? "text-emerald-500" : "text-red-500"
+                    )}>
+                      {pos.pnl !== undefined ? `${pos.pnl >= 0 ? "+" : ""}$${pos.pnl.toFixed(2)}` : "—"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleClosePosition(pos)}
+                      disabled={pos.status === "closing" || pos.status === "pending" || isProcessing}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-500 text-xs font-medium hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {pos.status === "closing" ? "Closing..." : pos.status === "pending" ? "Opening..." : "Close"}
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1345,20 +1639,53 @@ export function PerpetualsTradeView() {
               </div>
             )}
 
-            {/* Connect Wallet - Prominent Blue Button */}
-            <div className="pt-2 [&_button]:!w-full [&_button]:!py-4 [&_button]:!rounded-xl [&_button]:!text-base [&_button]:!font-semibold [&_button]:!bg-blue-500 [&_button]:!text-white [&_button]:!border-0 [&_button]:!justify-center [&_button]:hover:!bg-blue-600 [&_button]:!transition-colors">
-              <RainbowConnectButton />
+            {/* Open Position Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleOpenPosition}
+                disabled={isProcessing || (!payAmount && (isConnected && isAuthenticated))}
+                className={cn(
+                  "w-full py-4 rounded-xl font-semibold text-base transition-colors flex items-center justify-center gap-2",
+                  !isConnected || !isAuthenticated
+                    ? "bg-blue-500 hover:bg-blue-600 text-white"
+                    : side === "long"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : "bg-red-600 hover:bg-red-700 text-white",
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                )}
+              >
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                {!isConnected || !isAuthenticated
+                  ? "Connect Wallet"
+                  : `${side === "long" ? "Long" : "Short"} ${selectedTicker}`
+                }
+              </button>
             </div>
 
             {/* Bottom Details - same box, spaced */}
             <div className="space-y-3 pt-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Liquidation Price</span>
-                <span className="font-medium tabular-nums">—</span>
+                <span className={cn("font-medium tabular-nums", side === "long" ? "text-red-500" : "text-emerald-500")}>
+                  {selectedPrice && leverage ? (
+                    // For long: liq = entry * (1 - 1/leverage + 0.005)
+                    // For short: liq = entry * (1 + 1/leverage - 0.005)
+                    side === "long"
+                      ? `$${(selectedPrice * (1 - (1 / leverage) + 0.005)).toFixed(2)}`
+                      : `$${(selectedPrice * (1 + (1 / leverage) - 0.005)).toFixed(2)}`
+                  ) : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Position Value</span>
+                <span className="font-medium tabular-nums">
+                  {payAmount && leverage ? `$${(parseFloat(payAmount) * leverage).toFixed(2)}` : "—"}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Price Impact / Fees</span>
-                <span className="font-medium tabular-nums">0.000% / 0.000%</span>
+                <span className="font-medium tabular-nums">0.05% / 0.05%</span>
               </div>
               <button
                 type="button"
@@ -1368,6 +1695,31 @@ export function PerpetualsTradeView() {
                 Execution Details
                 <ChevronDown className={cn("w-4 h-4 transition-transform", executionDetailsOpen && "rotate-180")} />
               </button>
+
+              {executionDetailsOpen && (
+                <div className="space-y-2 pt-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Entry Price</span>
+                    <span className="tabular-nums">${selectedPrice ? formatPrice(selectedPrice) : "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Position Size</span>
+                    <span className="tabular-nums">{longAmount ? `${longAmount} ${selectedTicker}` : "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Collateral</span>
+                    <span className="tabular-nums">{payAmount ? `$${payAmount} USDC` : "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Max Leverage</span>
+                    <span className="tabular-nums">{MAX_LEVERAGE[selectedTicker] || MAX_LEVERAGE.default}x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Maintenance Margin</span>
+                    <span className="tabular-nums">0.5%</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
