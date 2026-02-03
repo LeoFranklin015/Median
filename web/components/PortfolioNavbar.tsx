@@ -11,7 +11,6 @@ const NAV_LINKS = [
   { name: "Markets", href: "/markets" },
   { name: "Perpetuals", href: "/perpetuals" },
   { name: "Portfolio", href: "/portfolio" },
-  { name: "Contact us", href: "#contact" },
 ] as const
 
 export const PortfolioNavbar = () => {

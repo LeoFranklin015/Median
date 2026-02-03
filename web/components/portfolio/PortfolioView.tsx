@@ -161,7 +161,7 @@ export function PortfolioView() {
             </p>
             <p className="text-2xl font-bold text-foreground">$0.00</p>
             <p className="text-xs text-muted-foreground mt-2">
-              Wallet + Custody combined
+              Off-chain unified balance
             </p>
           </div>
         </div>
