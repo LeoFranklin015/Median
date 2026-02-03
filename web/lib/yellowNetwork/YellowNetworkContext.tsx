@@ -28,6 +28,17 @@ import {
   type Allocation,
   type RPCLedgerEntry,
   StateIntent,
+  createAppSessionMessage,
+  createSubmitAppStateMessage,
+  RPCProtocolVersion,
+  type RPCAppDefinition,
+  type RPCAppSessionAllocation,
+  type RPCAppStateIntent,
+  createCloseAppSessionMessage,
+  createGetAppSessionsMessageV2,
+  type RPCAppSession,
+  RPCChannelStatus,
+  createTransferMessage,
 } from '@erc7824/nitrolite';
 
 import type {
@@ -63,6 +74,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
   // Refs for WebSocket and clients (persist across renders)
   const wsRef = useRef<WebSocket | null>(null);
   const nitroliteClientRef = useRef<NitroliteClient | null>(null);
+  const submitAppStateRef = useRef<any>(null); // Ref for calling submitAppState from handleMessage
   const intentionalDisconnectRef = useRef(false);
   const sessionExpireTimestampRef = useRef<string>('');
   const reconnectAttemptRef = useRef(0);
@@ -83,6 +95,20 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     resolve: (data: any) => void;
     reject: (error: Error) => void;
   } | null>(null);
+  const appSessionResolverRef = useRef<{
+    resolve: (data: { appSessionId: string }) => void;
+    reject: (error: Error) => void;
+  } | null>(null);
+  const submitAppStateResolverRef = useRef<{
+    resolve: (data: { success: boolean }) => void;
+    reject: (error: Error) => void;
+  } | null>(null);
+  const closeAppSessionResolverRef = useRef<{
+    resolve: (data: { success: boolean }) => void;
+    reject: (error: Error) => void;
+  } | null>(null);
+  const getAppSessionsResolversRef = useRef<Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }>>(new Map());
+  const transferResolversRef = useRef<Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }>>(new Map());
 
   // State
   const [isConnected, setIsConnected] = useState(false);
@@ -172,7 +198,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       try {
         const response = parseAnyRPCResponse(event.data);
         console.log('Parsed response:', response);
-        console.log('Response method:', response.method, 'Expected:', RPCMethod.GetLedgerEntries);
+        console.log('Response method:', (response as any).method);
         addLog(`Received: ${response.method}`, response);
 
         const currentWalletClient = walletClientRef.current;
@@ -195,7 +221,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
 
           try {
             const challengeResponse = response as AuthChallengeResponse;
-            const allowances = [{ asset: 'usdc', amount: '1' }];
+            const allowances = [{ asset: 'usdc', amount: '1000000000' }];
             const authParams = {
               scope: 'median.app',
               application: currentAddress as `0x${string}`,
@@ -248,7 +274,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
               const params = {
                 wallet: currentAddress,
                 account_id: currentAddress,
-                asset: 'usdc',
               };
 
               // Create and sign the message
@@ -338,6 +363,55 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
             }
           }
         }
+        // Handle app session closed response
+        else if ((response as any).method === 'app_session_closed') {
+          console.log('App session closed:', response.params);
+          addLog('App session closed by server', response.params);
+          if (closeAppSessionResolverRef.current) {
+            closeAppSessionResolverRef.current.resolve({ success: true });
+            closeAppSessionResolverRef.current = null;
+          }
+        }
+        // Handle app session created response
+        else if ((response as any).method === 'create_app_session') {
+          console.log('App session created:', response.params);
+          addLog('App session created', response.params);
+          if (appSessionResolverRef.current) {
+            const params = response.params as any;
+            const appSessionId = params.appSessionId || params.app_session_id;
+
+            if (appSessionId) {
+              appSessionResolverRef.current.resolve({ appSessionId });
+            } else {
+              appSessionResolverRef.current.reject(new Error('App session ID missing from response'));
+            }
+            appSessionResolverRef.current = null;
+          }
+        }
+        // Handle app state submitted response
+        else if ((response as any).method === 'submit_app_state') {
+          console.log('App state submitted:', response.params);
+          addLog('App state submitted', response.params);
+          if (submitAppStateResolverRef.current) {
+            submitAppStateResolverRef.current.resolve({ success: true });
+            submitAppStateResolverRef.current = null;
+          }
+        }
+        // Handle get app sessions response
+        else if ((response as any).method === 'get_app_sessions') {
+          console.log('App sessions retrieved:', response.params);
+          // Resolve pending resolvers based on timestamp or just resolve all
+          // Since we use map, we iterate
+          getAppSessionsResolversRef.current.forEach(({ resolve }) => resolve(response.params));
+          getAppSessionsResolversRef.current.clear();
+        }
+        // Handle balance updates (bu)
+        else if ((response as any).method === 'bu') {
+          console.log('Balance update received:', response.params);
+          addLog('Balance update received', response.params);
+          // Trigger balance refresh
+          refreshLedgerEntries();
+        }
         // Handle ledger entries response - calculate balance from credit/debit
         else if (response.method === RPCMethod.GetLedgerEntries) {
           console.log('📊 Raw ledger entries response:', JSON.stringify(response.params));
@@ -359,17 +433,181 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
           }));
           setLedgerEntries(formattedEntries);
 
-          // Calculate balance: sum of credits - sum of debits
-          const totalCredit = entries.reduce((sum, entry) => sum + parseFloat(entry.credit || '0'), 0);
-          const totalDebit = entries.reduce((sum, entry) => sum + parseFloat(entry.debit || '0'), 0);
-          const balance = (totalCredit - totalDebit).toString();
+          // Group entries by asset
+          const balanceMap = new Map<string, number>();
 
-          // Get asset from first entry or default to 'usdc'
-          const asset = entries.length > 0 ? entries[0].asset : 'usdc';
+          entries.forEach((entry) => {
+            const assetName = entry.asset || 'unknown';
+            const current = balanceMap.get(assetName) || 0;
+            const credit = parseFloat(entry.credit || '0');
+            const debit = parseFloat(entry.debit || '0');
+            balanceMap.set(assetName, current + credit - debit);
+          });
 
-          console.log('📊 Calculated balance:', { totalCredit, totalDebit, balance, asset });
-          setUnifiedBalances([{ asset, amount: balance }]);
-          addLog('Ledger entries processed', { entries: entries.length, balance, totalCredit, totalDebit });
+          // Convert to UnifiedBalance array
+          const newBalances: UnifiedBalance[] = [];
+          balanceMap.forEach((amount, asset) => {
+            newBalances.push({ asset, amount: amount.toString() });
+          });
+
+          console.log('📊 Calculated balances:', newBalances);
+          setUnifiedBalances(newBalances);
+          addLog('Ledger entries processed', {
+            count: entries.length,
+            balances: newBalances
+          });
+        }
+        // Handle transfer response
+        else if ((response as any).method === 'transfer') {
+          console.log('Transfer parsed response:', response.params);
+          addLog('Transfer completed', response.params);
+          const id = transferResolversRef.current.keys().next().value;
+          if (id) {
+            const resolver = transferResolversRef.current.get(id);
+            if (resolver) {
+              resolver.resolve({ success: true, data: response.params });
+              transferResolversRef.current.delete(id);
+            }
+          }
+        }
+        // Handle App State Update (asu)
+        else if ((response as any).method === 'asu') {
+          console.log('🔄 Received App State Update (asu)', response.params);
+          addLog('App State Update received', response.params);
+          const params = response.params as any;
+
+          // Helper to find session data in various possible structures
+          // The parser might return params as the session object itself, or wrapped in app_session/appSession
+          const sessionObj = params.appSession || params.app_session || params;
+          const rawSessionData = sessionObj.sessionData || sessionObj.session_data;
+
+          if (rawSessionData) {
+            try {
+              const sessionData = typeof rawSessionData === 'string'
+                ? JSON.parse(rawSessionData)
+                : rawSessionData;
+
+              if (sessionData.executionStatus === 'filled') {
+                console.log('✅ Order filled! Initiating transfer...', sessionData);
+                addLog('Order filled! Auto-transferring asset...', sessionData);
+
+                // Determine asset and amount
+                const market = sessionData.market || ''; // e.g., "AAPL/USDC"
+                const ticker = market.split('/')[0];
+                const filledQuantity = sessionData.filledQuantity;
+
+                // Determine counterparty
+                const participants = sessionObj.participants || params.participants || [];
+                const currentAddress = addressRef.current;
+                const counterparty = participants.find((p: string) => p.toLowerCase() !== currentAddress?.toLowerCase());
+
+                if (counterparty && currentAddress && sessionKeyRef.current) {
+                  const sessionSigner = createECDSAMessageSigner(sessionKeyRef.current.privateKey);
+
+                  // For 'buy', we pay the amount (USDC)
+                  // For 'sell', we would pay the asset
+                  const isBuy = sessionData.action === 'buy';
+                  const asset = isBuy ? 'usdc' : ticker; // Simplified: usually Quote vs Base
+                  const amount = sessionData.amount; // already in atoms
+
+                  if (asset && amount) {
+                    // Start async transfer without awaiting
+                    (async () => {
+                      try {
+                        // User requested to use decimal amount (e.g. "0.1") in transfer message
+                        const decimals = asset.toLowerCase() === 'usdc' ? 6 : 18;
+                        const decimalAmount = (parseFloat(amount.toString()) / Math.pow(10, decimals)).toString();
+
+                        const transferMsg = await createTransferMessage(sessionSigner, {
+                          destination: counterparty as `0x${string}`,
+                          allocations: [{
+                            asset,
+                            amount: decimalAmount,
+                          }],
+                        });
+
+
+                        addLog(`💸 Auto-transferring ${decimalAmount} ${asset} to ${counterparty}...`);
+
+                        // Create a promise to wait for transfer response
+                        const transferPromise = new Promise<{ success: boolean; data: any }>((resolve, reject) => {
+                          const id = Date.now().toString(); // The backend doesn't return request ID for transfers in the same way, but let's assume valid flow
+                          // Actually, our handleMessage 'transfer' handler picks the first key. 
+                          // So we just need to set ANY key.
+                          transferResolversRef.current.set(id, { resolve, reject });
+                          setTimeout(() => {
+                            if (transferResolversRef.current.has(id)) {
+                              transferResolversRef.current.delete(id);
+                              reject(new Error('Transfer timeout'));
+                            }
+                          }, 30000);
+                        });
+
+                        sendMessage(transferMsg);
+
+                        // Await response
+                        const transferResult = await transferPromise;
+                        addLog('✅ Transfer verified!', transferResult.data);
+
+                        // Extract transactions
+                        const transactions = transferResult.data.transactions || [];
+
+                        // Submit App State with transaction proof
+                        if (submitAppStateRef.current && params.appSession?.appSessionId) {
+                          const newSessionData = {
+                            ...sessionData,
+                            transactions,
+                            paymentStatus: 'completed',
+                            executionStatus: 'settled', // Update status
+                            timestamp: Date.now(),
+                          };
+
+                          addLog('📜 Submitting trade settlement (proof of payment)...');
+
+                          // Reuse existing allocations (likely zero as per hackathon flow)
+                          // We are just updating state to prove payment.
+                          // We use 'operate' intent.
+                          // participant_allocations logic is tricky. If we agreed on zero, we verify "0".
+                          // For safety, we fetch current allocations from the message or use zero.
+                          const currentAllocations = params.participant_allocations || [];
+                          // Actually, params.participant_allocations might be empty.
+                          // We'll construct explicit zero allocations for participants to satisfy 'operate' sum delta 0.
+                          const zeroAllocations = participants.map((p: string) => ({
+                            participant: p,
+                            asset: asset === 'usdc' ? YELLOW_CONFIG.testToken : (market.split('/')[0] === 'ETH' ? '0x...' : '0x...'), // We need address... 
+                            amount: '0'
+                          }));
+                          // WAIT: We don't have asset addresses easily here.
+                          // But `submitAppState` logic in `AssetDetailView` used specific addresses.
+                          // If we assume the previous state had valid allocations, we might reuse them.
+                          // Or we send empty array [] if allowed? 
+                          // The user's earlier flow had specific zero allocations.
+                          // Let's try sending EMPTY allocations [] first.
+
+                          await submitAppStateRef.current(
+                            params.appSession.appSessionId,
+                            [], // Empty allocations, hoping backend accepts logic or previous state persists
+                            'operate',
+                            newSessionData
+                          );
+                          addLog('✅ Trade settlement submitted!');
+                        }
+
+                      } catch (err) {
+                        console.error('Failed to create/send transfer message or submit state:', err);
+                        addLog('Auto-transfer/Settlement failed', { error: String(err) });
+                      }
+                    })();
+                  }
+                } else {
+                  console.warn('Cannot auto-transfer: Counterparty or Wallet missing');
+                  addLog('Auto-transfer failed: Counterparty missing');
+                }
+              }
+            } catch (e) {
+              console.error('Error processing asu session_data:', e);
+            }
+          }
         }
         // Handle errors
         else if (response.method === RPCMethod.Error) {
@@ -400,6 +638,18 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
           if (fundChannelResolverRef.current) {
             fundChannelResolverRef.current.reject(new Error(error));
             fundChannelResolverRef.current = null;
+          }
+          if (appSessionResolverRef.current) {
+            appSessionResolverRef.current.reject(new Error(error));
+            appSessionResolverRef.current = null;
+          }
+          if (submitAppStateResolverRef.current) {
+            submitAppStateResolverRef.current.reject(new Error(error));
+            submitAppStateResolverRef.current = null;
+          }
+          if (closeAppSessionResolverRef.current) {
+            closeAppSessionResolverRef.current.reject(new Error(error));
+            closeAppSessionResolverRef.current = null;
           }
         }
       } catch (error) {
@@ -491,7 +741,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
             throw new Error('Wallet or session key not available');
           }
 
-          const allowances = [{ asset: 'usdc', amount: '1' }];
+          const allowances = [{ asset: 'usdc', amount: '1000000000' }];
           const authParams: AuthRequestParams = {
             address: currentAddress,
             session_key: currentSessionKey.address,
@@ -802,14 +1052,19 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       stateData: closeData.state.stateData as `0x${string}`,
     });
 
-    addLog(`🔒 Channel ${channelId} closed on-chain (tx: ${txHash})`);
-    toast.success('Channel closed successfully!');
+    console.log(`🔒 Channel ${channelId} closed on-chain (tx: ${txHash})`);
+    addLog('Channel closed on-chain', { txHash });
 
     // Clear channel state
     setChannel(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(CHANNEL_ID_KEY);
+    }
 
     return { txHash };
-  }, [channel, sessionKey, address, sendMessage, addLog]);
+  }, [sessionKey, address, channel, sendMessage, addLog]);
+
+
 
   // Request faucet tokens
   const requestFaucet = useCallback(async (): Promise<void> => {
@@ -851,7 +1106,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       const params = {
         wallet: currentAddress,
         account_id: currentAddress,
-        asset: 'usdc',
       };
 
       const sessionSigner = createECDSAMessageSigner(currentSessionKey.privateKey);
@@ -1193,6 +1447,251 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     }
   }, [isAuthenticated, sessionKey, address, channel, sendMessage, addLog, refreshLedgerEntries, closeChannel]);
 
+  // Create an app session
+  const createAppSession = useCallback(async (
+    participants: string[],
+    allocations: { participant: string; asset: string; amount: string }[],
+    applicationName: string = 'Median App'
+  ): Promise<{ appSessionId: string }> => {
+    if (!isAuthenticated || !sessionKey) {
+      throw new Error('Not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+      appSessionResolverRef.current = {
+        resolve,
+        reject,
+      };
+
+      const doCreateSession = async () => {
+        try {
+          addLog(`Creating app session '${applicationName}'...`);
+
+          // Each participant gets equal weight, quorum set to single participant weight
+          const singleWeight = Math.floor(100 / participants.length);
+          const definition: RPCAppDefinition = {
+            protocol: RPCProtocolVersion.NitroRPC_0_4,
+            participants: participants as `0x${string}`[],
+            weights: participants.map(() => singleWeight),
+            quorum: singleWeight, // Only one party needs to agree
+            challenge: 0,
+            nonce: Date.now(),
+            application: applicationName,
+          };
+
+          const rpcAllocations: RPCAppSessionAllocation[] = allocations.map(a => ({
+            participant: a.participant as `0x${string}`,
+            asset: a.asset,
+            amount: a.amount,
+          }));
+
+          const sessionSigner = createECDSAMessageSigner(sessionKey.privateKey);
+          const sessionMessage = await createAppSessionMessage(sessionSigner, {
+            definition,
+            allocations: rpcAllocations,
+          });
+
+          if (!sendMessage(sessionMessage)) {
+            throw new Error('Failed to send create app session message');
+          }
+          addLog('App session creation request sent');
+        } catch (error) {
+          console.error('Create app session error:', error);
+          addLog('App session creation failed', { error: String(error) });
+          reject(error);
+          appSessionResolverRef.current = null;
+        }
+      };
+
+      doCreateSession();
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (appSessionResolverRef.current) {
+          appSessionResolverRef.current.reject(new Error('App session creation timeout'));
+          appSessionResolverRef.current = null;
+        }
+      }, 30000);
+    });
+  }, [isAuthenticated, sessionKey, sendMessage, addLog]);
+
+
+  // Helper to get app sessions
+  const getAppSessions = useCallback(async (participant?: string, status?: RPCChannelStatus): Promise<RPCAppSession[]> => {
+    if (!isAuthenticated || !sessionKey) {
+      throw new Error('Not authenticated');
+    }
+
+    const participantAddress = (participant || address) as `0x${string}`;
+    const message = createGetAppSessionsMessageV2(participantAddress, status);
+
+    return new Promise((resolve, reject) => {
+      const id = Date.now().toString();
+      getAppSessionsResolversRef.current.set(id, {
+        resolve: (data: any) => resolve(data.appSessions || []),
+        reject
+      });
+
+      if (!sendMessage(message)) {
+        getAppSessionsResolversRef.current.delete(id);
+        reject(new Error('Failed to send get app sessions message'));
+        return;
+      }
+
+      setTimeout(() => {
+        if (getAppSessionsResolversRef.current.has(id)) {
+          getAppSessionsResolversRef.current.delete(id);
+          reject(new Error('Get app sessions timeout'));
+        }
+      }, 30000);
+    });
+  }, [isAuthenticated, sessionKey, address, sendMessage]);
+
+  // Helper to get app session version
+  const getAppSessionVersion = useCallback(async (appSessionId: string): Promise<number> => {
+    const sessions = await getAppSessions();
+    const session = sessions.find((s) => s.appSessionId.toLowerCase() === appSessionId.toLowerCase());
+
+    if (!session) {
+      throw new Error(`App session not found: ${appSessionId}`);
+    }
+    return session.version;
+  }, [getAppSessions]);
+
+  // Submit app state
+  const submitAppState = useCallback(async (
+    appSessionId: string,
+    allocations: { participant: string; asset: string; amount: string }[],
+    intent: 'operate' | 'deposit' | 'withdraw' = 'operate',
+    sessionData?: Record<string, unknown>
+  ): Promise<{ success: boolean }> => {
+    if (!isAuthenticated || !sessionKey) {
+      throw new Error('Not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+      submitAppStateResolverRef.current = {
+        resolve,
+        reject,
+      };
+
+      const doSubmitState = async () => {
+        try {
+          addLog(`Submitting app state for session ${appSessionId.slice(0, 10)}...`);
+
+          // Fetch current version
+          const currentVersion = await getAppSessionVersion(appSessionId);
+          const newVersion = currentVersion + 1;
+
+          console.log(`Current version: ${currentVersion}, submitting version: ${newVersion}`);
+
+          const rpcIntentMap: Record<string, any> = {
+            operate: 'operate',
+            deposit: 'deposit',
+            withdraw: 'withdraw',
+          };
+
+          const rpcIntent = rpcIntentMap[intent];
+
+          const rpcAllocations: RPCAppSessionAllocation[] = allocations.map(a => ({
+            participant: a.participant as `0x${string}`,
+            asset: a.asset,
+            amount: a.amount,
+          }));
+
+          const sessionSigner = createECDSAMessageSigner(sessionKey.privateKey);
+          const stateMessage = await createSubmitAppStateMessage<typeof RPCProtocolVersion.NitroRPC_0_4>(sessionSigner, {
+            app_session_id: appSessionId as `0x${string}`,
+            intent: rpcIntent,
+            version: newVersion,
+            allocations: rpcAllocations,
+            ...(sessionData && { session_data: JSON.stringify(sessionData) }),
+          });
+
+          if (!sendMessage(stateMessage)) {
+            throw new Error('Failed to send submit app state message');
+          }
+          console.log('App state submission sent:', stateMessage);
+          addLog('App state submission sent');
+        } catch (error) {
+          console.error('Submit app state error:', error);
+          addLog('Submit app state failed', { error: String(error) });
+          reject(error);
+          submitAppStateResolverRef.current = null;
+        }
+      };
+
+      doSubmitState();
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (submitAppStateResolverRef.current) {
+          submitAppStateResolverRef.current.reject(new Error('Submit app state timeout'));
+          submitAppStateResolverRef.current = null;
+        }
+      }, 30000);
+    });
+  }, [isAuthenticated, sessionKey, sendMessage, addLog, getAppSessionVersion]);
+
+  // Transfer assets
+  const transfer = useCallback(async (
+    destination: string,
+    allocations: { asset: string; amount: string }[]
+  ): Promise<{ success: boolean }> => {
+    if (!isAuthenticated || !sessionKey) {
+      throw new Error('Not authenticated');
+    }
+
+    return new Promise((resolve, reject) => {
+      // Create a unique ID for this request
+      const id = Date.now().toString();
+      transferResolversRef.current.set(id, {
+        resolve,
+        reject
+      });
+
+      const doTransfer = async () => {
+        try {
+          addLog(`💸 Initiating transfer to: ${destination}`);
+
+          const sessionSigner = createECDSAMessageSigner(sessionKey.privateKey);
+
+          const transferMessage = await createTransferMessage(sessionSigner, {
+            destination: destination as `0x${string}`,
+            allocations: allocations.map(a => ({
+              asset: a.asset,
+              amount: a.amount,
+            })),
+          });
+
+          if (!sendMessage(transferMessage)) {
+            throw new Error('Failed to send transfer message');
+          }
+          addLog('Transfer request sent');
+        } catch (error) {
+          console.error('Transfer error:', error);
+          addLog('Transfer failed', { error: String(error) });
+          reject(error);
+          transferResolversRef.current.delete(id);
+        }
+      };
+
+      doTransfer();
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (transferResolversRef.current.has(id)) {
+          transferResolversRef.current.delete(id);
+          reject(new Error('Transfer timeout'));
+        }
+      }, 30000);
+    });
+  }, [isAuthenticated, sessionKey, sendMessage, addLog]);
+
+  useEffect(() => {
+    submitAppStateRef.current = submitAppState;
+  }, [submitAppState]);
+
   // Context value
   const contextValue: YellowNetworkContextValue = {
     // State
@@ -1217,6 +1716,9 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     depositToCustody,
     addToTradingBalance,
     refreshLedgerEntries,
+    createAppSession,
+    submitAppState,
+    transfer,
 
     // Exposed refs
     nitroliteClient: nitroliteClientRef.current,

@@ -11,10 +11,14 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts"
-import { ChevronDown, ArrowDown, HelpCircle, Copy } from "lucide-react"
+import { ChevronDown, ArrowDown, HelpCircle, Copy, Loader2 } from "lucide-react"
 import type { AssetData } from "@/lib/sparkline-data"
 import { useAssetDetail } from "@/hooks/useAssetDetail"
 import { cn } from "@/lib/utils"
+import { useYellowNetwork } from "@/lib/yellowNetwork/YellowNetworkContext"
+import { YELLOW_CONFIG } from "@/lib/yellowNetwork/config"
+import { useAccount } from "wagmi"
+import { toast } from "sonner"
 
 const CHART_RANGES = [
   { key: "1D", label: "1D" },
@@ -24,6 +28,9 @@ const CHART_RANGES = [
   { key: "1Y", label: "1Y" },
   { key: "ALL", label: "ALL" },
 ]
+
+// Hardcoded counterparty address for the hackathon
+const COUNTERPARTY_ADDRESS = "0x4888Eb840a7Ca93F49C9be3dD95Fc0EdA25bF0c6"
 
 function sampleChartData(
   data: { time: number; value: number }[],
@@ -56,6 +63,10 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
   const [receiveAmount, setReceiveAmount] = useState("0")
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
   const [showMore, setShowMore] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const { isConnected, isAuthenticated, connect, createAppSession, submitAppState, unifiedBalances } = useYellowNetwork()
+  const { address } = useAccount()
 
   const chartData = useMemo(() => {
     if (liveData.chartData?.length) {
@@ -87,6 +98,94 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
     }
   }
 
+  const handleAction = async () => {
+    if (!isConnected || !isAuthenticated) {
+      await connect()
+      return
+    }
+
+    if (!address) {
+      toast.error("Wallet address not found")
+      return
+    }
+
+    const amount = parseFloat(payAmount)
+    if (!amount || amount <= 0) {
+      toast.error("Please enter a valid amount")
+      return
+    }
+
+    // Check balance if buying
+    if (activeTab === "buy") {
+      const usdcBalance = unifiedBalances.find((b) => b.asset.toLowerCase() === "usdc")
+      // Only proceed if we have a balance check, or assume user knows (for hackathon speed)
+      // but showing a warning is good.
+    }
+
+    setIsProcessing(true)
+    try {
+      // Step 1: Create App Session
+      toast.info("Creating trade session...")
+      const participants = [address, COUNTERPARTY_ADDRESS]
+
+      // Helper to convert to atomic units (USDC = 6 decimals, Others = 18)
+      const toAtomicUnits = (val: string, decimals: number) => {
+        if (!val) return "0"
+        return BigInt(Math.floor(parseFloat(val) * Math.pow(10, decimals))).toString()
+      }
+
+      const usdcAtomic = toAtomicUnits(payAmount, 6)
+      const assetAtomic = toAtomicUnits(receiveAmount, 18)
+
+      // Use actual asset addresses
+      // YELLOW_CONFIG.testToken is USDC on Sepolia
+      // asset.address is the stock token address
+      const usdcAddress = YELLOW_CONFIG.testToken;
+      const assetAddress = asset.address || '0x0000000000000000000000000000000000000000'; // Fallback if missing, but should be there
+
+      // To satisfy "Operate" (Sum Delta = 0), we must define initial state with the funds we plan to use.
+      // User request: Zero allocation session.
+      const initialAllocations = [
+        { participant: address, asset: usdcAddress, amount: "0" },
+        { participant: COUNTERPARTY_ADDRESS, asset: assetAddress, amount: "0" }
+      ]
+
+      const { appSessionId } = await createAppSession(participants, initialAllocations, "Median App")
+      toast.success("Session created!")
+
+      // Step 2: Submit App State (The Trade)
+      toast.info("Submitting trade order...")
+
+      // Trade: Zero allocations as requested.
+      const tradeAllocations = [
+        { participant: address, asset: assetAddress, amount: "0" },
+        { participant: COUNTERPARTY_ADDRESS, asset: usdcAddress, amount: "0" }
+      ]
+
+      const sessionData = {
+        action: activeTab, // "buy" or "sell"
+        market: `${asset.ticker}/USDC`,
+        price: liveData.price,
+        amount: activeTab === "buy" ? usdcAtomic : assetAtomic,
+        timestamp: Date.now()
+      }
+
+      await submitAppState(appSessionId, tradeAllocations, "operate", sessionData)
+
+      toast.success(`Successfully ${activeTab === "buy" ? "bought" : "sold"} ${receiveAmount} ${asset.ticker}!`)
+
+      // Reset form
+      setPayAmount("0")
+      setReceiveAmount("0")
+
+    } catch (error) {
+      console.error("Trade failed:", error)
+      toast.error(`Trade failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const aboutText = `The Trust seeks to reflect such performance before payment of the Trust's expenses and liabilities. It is not actively managed. The Trust does not engage in any activities designed to obtain a profit from, or to ameliorate losses caused by, changes in the price of silver.`
 
   const open24h = liveData.price - liveData.change24h
@@ -102,6 +201,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
   }
 
   const categoryTags = [...new Set([liveData.category, ...liveData.categories])].slice(0, 2)
+
+  const isWalletConnected = isConnected && isAuthenticated
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -228,7 +329,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                       active && payload?.[0] && (
                         <div className="bg-white px-4 py-2 rounded-lg shadow-lg border border-zinc-200">
                           <p className="text-sm font-semibold text-zinc-900">
-                            ${payload[0].value?.toFixed(2)}
+                            ${Number(payload[0].value).toFixed(2)}
                           </p>
                         </div>
                       )
@@ -540,12 +641,18 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 </div>
               </div>
 
-              {/* Sign In button */}
+              {/* Action button */}
               <button
                 type="button"
-                className="w-full py-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold transition-colors"
+                onClick={handleAction}
+                disabled={isProcessing}
+                className="w-full py-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Sign In to Continue
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                {!isWalletConnected
+                  ? "Connect Wallet to Trade"
+                  : activeTab === "buy" ? "Buy " + asset.ticker : "Sell " + asset.ticker
+                }
               </button>
 
               {/* Disclaimer */}

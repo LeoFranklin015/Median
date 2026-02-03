@@ -31,8 +31,12 @@ export const walletClient = createWalletClient({
 export async function authenticate(client: Client): Promise<SessionKey> {
     const allowances = [{
         asset: 'usdc',
-        amount: '1',
-    }];
+        amount: '1000000000',
+    },{
+        asset: 'eurc',
+        amount: '1000000000',
+    }
+        ];
     const sessionKey = generateSessionKey();
     const sessionExpireTimestamp = String(Math.floor(Date.now() / 1000) + SESSION_DURATION);
 

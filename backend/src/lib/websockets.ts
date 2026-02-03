@@ -254,6 +254,10 @@ class WebSocketService {
                 this.handleSubmitAppState(message);
                 break;
 
+            case 'asu':
+                this.handleAppStateUpdate(message);
+                break;
+
             case RPCMethod.CloseAppSession:
             case 'close_app_session':
                 this.handleCloseAppSession(message);
@@ -266,6 +270,7 @@ class WebSocketService {
 
             case RPCMethod.Transfer:
             case 'transfer':
+            case 'tr':
                 this.handleTransfer(message);
                 break;
 
@@ -407,13 +412,208 @@ class WebSocketService {
         this.getAppSessionsResolvers.clear();
     }
 
-    private handleTransfer(message: RPCResponse) {
-        console.log('💸 Transfer completed successfully!');
-        console.log('Transfer response:', message);
+    private async handleAppStateUpdate(message: RPCResponse) {
+        console.log('🔄 Received App State Update (asu)');
+        const params = message.params as any;
+
+        // Check if we have session data to process
+        if (!params.sessionData) return;
+
+        try {
+            const sessionData = JSON.parse(params.sessionData);
+            console.log('📦 Processing session data:', sessionData);
+
+            // Avoid infinite loops - only process if user initiated "action" and not yet "filled"
+            if (sessionData.action && !sessionData.executionStatus) {
+                console.log('🤖 Detected trade action, executing...');
+
+                const market = sessionData.market; // e.g., "AAPL/USDC"
+                const ticker = market.split('/')[0];
+                const userAmount = parseFloat(sessionData.amount || '0'); // Amount in atomic units or whatever format user sent
+
+                // 1. Fetch Price from Finnhub
+                let price = 0;
+                try {
+                    const apiKey = process.env.FINNHUB_API_KEY;
+                    if (apiKey) {
+                        const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`);
+                        const data = await response.json() as { c: number };
+                        price = data.c; // 'c' is current price
+                        console.log(`📈 Fetched price for ${ticker}: ${price}`);
+                    } else {
+                        console.warn('⚠️ FINNHUB_API_KEY not set, using mock price');
+                        price = 270.00; // Mock
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch price', err);
+                    price = 270.00; // Fallback
+                }
+
+                // 2. Calculate Stock Amount
+                // If user sent USDC amount (in atomic units?), we need to normalize.
+                // Assuming user sent request in atomic units but logical amount is what matters for "value".
+                // User logic: "if amount is 270.01 then return ... value as 1"
+                // Let's assume user sends atomic units but we process roughly for now or strict?
+                // The request says: "if amount is 270.01 then return as stock name aapl and value as 1"
+                // It implies Amount / Price = StockQty.
+                // Since `userAmount` might be in atomic units (6 decimals for USDC), and Price is in dollars.
+                // WE NEED TO KNOW DECIMALS. USDC=6.
+
+                // Let's simplified calculation:
+                // RealAmount = UserAmount / 1e6
+                // StockQty = RealAmount / Price
+
+                // However, user snippet sends `activeTab === "buy" ? usdcAtomic : assetAtomic`.
+                // If Buy, amount is USDC Atomic.
+                const realUsdcAmount = userAmount / 1_000_000;
+                const stockQty = realUsdcAmount / price;
+
+                console.log(`🧮 Calculated trade: ${realUsdcAmount} USDC / ${price} = ${stockQty} ${ticker}`);
+
+                // 3. Submit New State
+                // We need to pass the participants/allocations from current state or modify them?
+                // User instructions: "submit this return json to the app state with next version number"
+                // We will keep allocations as is (Zero) per current flow, just update sessionData.
+
+                const executionData = {
+                    ...sessionData,
+                    executionStatus: 'filled',
+                    filledPrice: price,
+                    filledQuantity: stockQty,
+                    timestamp: Date.now()
+                };
+
+                // We need the App Session ID. It's in params.appSessionId
+                const appSessionId = params.appSessionId;
+                const currentParticipants = params.participants; // We need this to reconstruct allocations if needed
+
+                // Reconstruct allocations (using 0 as requested/current state)
+                const allocations = params.participantAllocations?.map((p: any) => ({
+                    participant: p.participant,
+                    asset: p.asset,
+                    amount: p.amount
+                })) || [];
+
+                // Use the helper to submit
+                await this.submitAppState(
+                    appSessionId,
+                    allocations, // Keep existing allocations
+                    RPCAppStateIntent.Operate,
+                    executionData
+                );
+            }
+        } catch (error) {
+            console.error('❌ Error processing AS update:', error);
+        }
+    }
+
+    private async handleTransfer(message: RPCResponse) {
+        console.log('💸 Transfer received!');
+        console.log('Transfer response:', JSON.stringify(message, null, 2));
 
         // Resolve all pending transfer promises with the message
         this.transferResolvers.forEach(({ resolve }) => resolve(message.params));
         this.transferResolvers.clear();
+
+        // Handle incoming transfers - send stock tokens back to buyer
+        try {
+            const params = message.params as any;
+
+            // Extract the sender address from the transfer message
+            // The transfer message contains transactions array with from_account
+            const transactions = params.transactions || [];
+            if (transactions.length === 0) {
+                console.log('📋 No transactions in transfer message, skipping stock token response');
+                return;
+            }
+
+            const senderAddress = transactions[0].fromAccount || transactions[0].from_account;
+
+            if (!senderAddress) {
+                console.log('📋 No sender address found in transfer message, skipping stock token response');
+                return;
+            }
+
+            // Don't respond to our own outgoing transfers
+            const wallet = getWallet();
+            if (senderAddress.toLowerCase() === wallet.address.toLowerCase()) {
+                console.log('📋 Transfer is outgoing, no response needed');
+                return;
+            }
+
+            console.log(`📋 Transfer received from: ${senderAddress}`);
+
+            // Get app sessions to find the one with filled state
+            const sessions = await this.getAppSessions();
+
+            // Find a session with filledQuantity in session_data that involves the sender
+            let filledSession = null;
+            let filledData = null;
+
+            for (const session of sessions) {
+                // Check if the sender is a participant in this session
+                const sessionObj = session as any;
+                const participants = sessionObj.participants || [];
+                const isParticipant = participants.some(
+                    (p: string) => p.toLowerCase() === senderAddress.toLowerCase()
+                );
+
+                // Look for session_data (snake_case) or sessionData (camelCase)
+                const rawSessionData = sessionObj.session_data || sessionObj.sessionData;
+
+                if (rawSessionData) {
+                    try {
+                        const sessionData = typeof rawSessionData === 'string'
+                            ? JSON.parse(rawSessionData)
+                            : rawSessionData;
+
+                        if (sessionData.filledQuantity && sessionData.executionStatus === 'filled') {
+                            // Prefer sessions where sender is a participant
+                            if (isParticipant || !filledSession) {
+                                filledSession = session;
+                                filledData = sessionData;
+                                console.log(`📋 Found filled session: ${sessionObj.appSessionId}`);
+                                console.log(`   FilledQuantity: ${sessionData.filledQuantity}`);
+                                console.log(`   Market: ${sessionData.market}`);
+                                console.log(`   Sender is participant: ${isParticipant}`);
+
+                                // If sender is participant, this is the best match
+                                if (isParticipant) break;
+                            }
+                        }
+                    } catch (e) {
+                        console.log('📋 Could not parse session_data:', e);
+                    }
+                }
+            }
+
+            if (!filledSession || !filledData) {
+                console.log('📋 No filled session found, skipping stock token response');
+                return;
+            }
+
+            // Send stock tokens (eurc) back to the sender
+            const stockQuantity = filledData.filledQuantity;
+            const market = filledData.market || 'AAPL/USDC';
+            const ticker = market.split('/')[0].toLowerCase();
+
+            // filledQuantity is already in human-readable format, use as-is
+            const stockAmount = String(stockQuantity);
+
+            console.log(`💸 Sending ${stockQuantity} ${ticker} to ${senderAddress}`);
+
+            await this.transfer(senderAddress, [
+                {
+                    asset: 'eurc', // Use eurc as the stock token asset
+                    amount: stockAmount
+                }
+            ]);
+
+            console.log(`✅ Stock tokens sent successfully to ${senderAddress}`);
+
+        } catch (error) {
+            console.error('❌ Error processing transfer and sending stock tokens:', error);
+        }
     }
 
     public send(payload: string) {

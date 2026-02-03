@@ -5,10 +5,16 @@ export const USDC_TOKEN = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as `0x${s
 export const AUTH_SCOPE = 'Median App';
 export const SESSION_DURATION = 3600; // 1 hour in seconds
 
-export const AUTH_ALLOWANCES = [{
-    asset: 'usdc',
-    amount: '1',
-}];
+export const AUTH_ALLOWANCES = [
+    {
+        asset: 'usdc',
+        amount: '100000000000',
+    },
+    {
+        asset: 'eurc',
+        amount: '100000000000',
+    }
+];
 
 export default function getContractAddresses() {
     return {

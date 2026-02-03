@@ -2,8 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Menu, X, Wallet, Search } from "lucide-react"
+import { Menu, X, Search, Wallet } from "lucide-react"
 import { ThemeToggle } from "@/components/ThemeToggle"
+import { useYellowNetwork } from "@/lib/yellowNetwork/YellowNetworkContext"
+import { useAccount } from "wagmi"
 
 const navLinks = [
   { name: "Trade", href: "/perpetuals" },
@@ -15,6 +17,18 @@ const navLinks = [
 
 export function MarketNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { connect, isConnected, isAuthenticated } = useYellowNetwork()
+  const { address } = useAccount()
+
+  const handleConnect = async () => {
+    await connect()
+  }
+
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`
+  }
+
+  const isWalletConnected = isConnected && isAuthenticated && address
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-xl border-b border-border">
@@ -56,17 +70,21 @@ export function MarketNavbar() {
             </div>
             <button
               type="button"
+              onClick={handleConnect}
               className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-sm font-medium transition-colors"
             >
               <Wallet className="w-4 h-4" />
-              Connect Wallet
+              {isWalletConnected ? formatAddress(address!) : "Connect Wallet"}
             </button>
-            <button
-              type="button"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium transition-colors"
-            >
-              Sign Up / Log In
-            </button>
+            {!isWalletConnected && (
+              <button
+                type="button"
+                onClick={handleConnect}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium transition-colors"
+              >
+                Sign Up / Log In
+              </button>
+            )}
 
             <button
               type="button"
@@ -103,17 +121,21 @@ export function MarketNavbar() {
           <div className="pt-4 border-t border-zinc-200 space-y-2">
             <button
               type="button"
+              onClick={handleConnect}
               className="flex items-center gap-2 w-full justify-center py-3 rounded-lg bg-muted text-foreground text-sm font-medium"
             >
               <Wallet className="w-4 h-4" />
-              Connect Wallet
+              {isWalletConnected ? formatAddress(address!) : "Connect Wallet"}
             </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 w-full justify-center py-3 rounded-lg bg-zinc-900 text-white text-sm font-medium"
-            >
-              Sign Up / Log In
-            </button>
+            {!isWalletConnected && (
+              <button
+                type="button"
+                onClick={handleConnect}
+                className="flex items-center gap-2 w-full justify-center py-3 rounded-lg bg-zinc-900 text-white text-sm font-medium"
+              >
+                Sign Up / Log In
+              </button>
+            )}
           </div>
         </div>
       )}
