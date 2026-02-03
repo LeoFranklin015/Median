@@ -11,6 +11,8 @@ import {
   DollarSign,
   Wallet,
   Settings,
+  Shield,
+  Layers,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -60,6 +62,108 @@ export function PortfolioView() {
               {frame}
             </button>
           ))}
+        </div>
+      </motion.div>
+
+      {/* Balance types - Wallet, Custody, Unified */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
+      >
+        {/* Wallet Balance */}
+        <div
+          className="group relative rounded-2xl border overflow-hidden transition-all duration-300 hover:border-[#FFD700]/40"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+            borderColor: "hsl(var(--border))",
+          }}
+        >
+          <div className="p-6">
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-colors"
+              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
+            >
+              <Wallet className="w-5 h-5" />
+            </div>
+            <p
+              className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1"
+              style={{ fontFamily: "var(--font-figtree), Figtree" }}
+            >
+              Wallet Balance
+            </p>
+            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Your on-chain wallet
+            </p>
+          </div>
+        </div>
+
+        {/* Custody Wallet Balance */}
+        <div
+          className="group relative rounded-2xl border overflow-hidden transition-all duration-300 hover:border-[#FFD700]/40"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
+            borderColor: "hsl(var(--border))",
+          }}
+        >
+          <div className="p-6">
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-colors"
+              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
+            >
+              <Shield className="w-5 h-5" />
+            </div>
+            <p
+              className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1"
+              style={{ fontFamily: "var(--font-figtree), Figtree" }}
+            >
+              Custody Wallet Balance
+            </p>
+            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Funds in trading custody
+            </p>
+          </div>
+        </div>
+
+        {/* Unified Balance - highlighted as primary */}
+        <div
+          className="relative rounded-2xl overflow-hidden"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,215,0,0.15) 0%, rgba(255,215,0,0.05) 100%)",
+            border: "1px solid rgba(255,215,0,0.35)",
+            boxShadow: "0 0 40px -10px rgba(255,215,0,0.15)",
+          }}
+        >
+          <div className="p-6">
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
+              style={{
+                background: "rgba(255,215,0,0.25)",
+                color: "#FFD700",
+              }}
+            >
+              <Layers className="w-5 h-5" />
+            </div>
+            <p
+              className="text-xs font-medium uppercase tracking-wider mb-1"
+              style={{
+                fontFamily: "var(--font-figtree), Figtree",
+                color: "#FFD700",
+              }}
+            >
+              Unified Balance
+            </p>
+            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Wallet + Custody combined
+            </p>
+          </div>
         </div>
       </motion.div>
 
