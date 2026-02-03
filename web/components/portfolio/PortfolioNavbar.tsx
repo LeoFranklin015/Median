@@ -4,18 +4,17 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
 import { Menu, X } from "lucide-react"
-import { ThemeToggle } from "./ThemeToggle"
-import { RainbowConnectButton } from "./ConnectButton"
+import { ThemeToggle } from "@/components/ThemeToggle"
+import { RainbowConnectButton } from "@/components/ConnectButton"
 
 const NAV_LINKS = [
   { name: "Markets", href: "/markets" },
   { name: "Perpetuals", href: "/perpetuals" },
   { name: "Portfolio", href: "/portfolio" },
-  { name: "Contact us", href: "#contact" },
 ] as const
 
-export const PortfolioNavbar = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+export function PortfolioNavbar() {
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
@@ -25,17 +24,6 @@ export const PortfolioNavbar = () => {
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
-
-  const toggleMobileMenu = () => setIsMobileMenuOpen((open) => !open)
-  const closeMobileMenu = () => setIsMobileMenuOpen(false)
-
-  const handleAnchorClick = (href: string) => {
-    if (!href.startsWith("#")) return
-    const el = document.querySelector(href)
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" })
-    }
-  }
 
   return (
     <nav
@@ -67,62 +55,58 @@ export const PortfolioNavbar = () => {
 
           {/* Center nav links */}
           <div className="hidden md:flex absolute left-1/2 -translate-x-1/2">
-            <div 
+            <div
               className="flex items-center gap-8 rounded-full px-8 py-3 backdrop-blur-2xl shadow-lg"
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.1)",
+                boxShadow:
+                  "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.1)",
               }}
             >
-              {NAV_LINKS.map((link) =>
-                link.href.startsWith("/") ? (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    className="text-[15px] font-semibold text-zinc-300 hover:text-white transition-all duration-200 relative group whitespace-nowrap"
-                    style={{ fontFamily: "Figtree, sans-serif", letterSpacing: "0.01em" }}
-                  >
-                    <span>{link.name}</span>
-                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary rounded-full transition-all duration-300 group-hover:w-full" />
-                  </Link>
-                ) : (
-                  <button
-                    key={link.name}
-                    type="button"
-                    onClick={() => handleAnchorClick(link.href)}
-                    className="text-[15px] font-semibold text-zinc-300 hover:text-white transition-all duration-200 relative group whitespace-nowrap"
-                    style={{ fontFamily: "Figtree, sans-serif", letterSpacing: "0.01em" }}
-                  >
-                    <span>{link.name}</span>
-                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary rounded-full transition-all duration-300 group-hover:w-full" />
-                  </button>
-                )
-              )}
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className="text-[15px] font-semibold text-zinc-300 hover:text-white transition-all duration-200 relative group whitespace-nowrap"
+                  style={{
+                    fontFamily: "Figtree, sans-serif",
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  <span>{link.name}</span>
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary rounded-full transition-all duration-300 group-hover:w-full" />
+                </Link>
+              ))}
             </div>
           </div>
 
-          {/* Right controls: theme + wallet */}
+          {/* Right: theme + wallet */}
           <div className="hidden md:flex items-center gap-3">
-            <div 
+            <div
               className="rounded-full px-3 py-2 backdrop-blur-2xl"
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
+                boxShadow:
+                  "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
               }}
             >
               <ThemeToggle />
             </div>
-            <div 
+            <div
               className="rounded-full px-3 py-1.5 backdrop-blur-2xl"
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
+                boxShadow:
+                  "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
               }}
             >
-              <div 
+              <div
                 className="[&_button]:!px-5 [&_button]:!py-2 [&_button]:!rounded-full [&_button]:!text-[15px] [&_button]:!font-semibold [&_button]:!bg-transparent [&_button]:!border-none [&_button]:!text-zinc-300 [&_button]:hover:!text-white [&_button]:!transition-colors"
                 style={{ fontFamily: "Figtree, sans-serif" }}
               >
@@ -137,11 +121,11 @@ export const PortfolioNavbar = () => {
               <ThemeToggle />
             </div>
             <button
-              onClick={toggleMobileMenu}
+              onClick={() => setMobileOpen(!mobileOpen)}
               className="text-foreground hover:text-primary p-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl transition-colors duration-200"
               aria-label="Toggle mobile menu"
             >
-              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+              {mobileOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
@@ -149,7 +133,7 @@ export const PortfolioNavbar = () => {
 
       {/* Mobile nav */}
       <AnimatePresence>
-        {isMobileMenuOpen && (
+        {mobileOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -158,32 +142,17 @@ export const PortfolioNavbar = () => {
             className="md:hidden bg-background/95 backdrop-blur-xl border-t border-border"
           >
             <div className="px-6 py-4 space-y-3">
-              {NAV_LINKS.map((link) =>
-                link.href.startsWith("/") ? (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    onClick={closeMobileMenu}
-                    className="block w-full text-left text-foreground hover:text-primary py-2.5 text-base font-medium"
-                    style={{ fontFamily: "Figtree, sans-serif" }}
-                  >
-                    {link.name}
-                  </Link>
-                ) : (
-                  <button
-                    key={link.name}
-                    type="button"
-                    onClick={() => {
-                      handleAnchorClick(link.href)
-                      closeMobileMenu()
-                    }}
-                    className="block w-full text-left text-foreground hover:text-primary py-2.5 text-base font-medium"
-                    style={{ fontFamily: "Figtree, sans-serif" }}
-                  >
-                    {link.name}
-                  </button>
-                )
-              )}
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="block w-full text-left text-foreground hover:text-primary py-2.5 text-base font-medium"
+                  style={{ fontFamily: "Figtree, sans-serif" }}
+                >
+                  {link.name}
+                </Link>
+              ))}
               <div className="pt-3 border-t border-border">
                 <div className="rounded-2xl bg-white/5 border border-white/10 px-2 py-2 backdrop-blur-xl">
                   <div className="[&_button]:!w-full [&_button]:!justify-center [&_button]:!rounded-full">
@@ -198,4 +167,3 @@ export const PortfolioNavbar = () => {
     </nav>
   )
 }
-
