@@ -85,7 +85,9 @@ export interface YellowNetworkActions {
   requestFaucet: () => Promise<void>;
   clearActivityLog: () => void;
   depositToCustody: (amount: string) => Promise<{ txHash: string }>;
+  withdrawFromCustody: (amount: string) => Promise<{ txHash: string }>;
   addToTradingBalance: (amount: string) => Promise<void>;
+  withdrawFromTradingBalance: (amount: string) => Promise<void>;
   refreshLedgerEntries: () => Promise<void>;
   createAppSession: (participants: string[], allocations: { participant: string; asset: string; amount: string }[], applicationName?: string) => Promise<{ appSessionId: string }>;
   submitAppState: (appSessionId: string, allocations: { participant: string; asset: string; amount: string }[], intent?: 'operate' | 'deposit' | 'withdraw', sessionData?: Record<string, unknown>) => Promise<{ success: boolean }>;

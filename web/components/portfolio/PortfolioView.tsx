@@ -15,6 +15,7 @@ import {
   Shield,
   Layers,
   Plus,
+  ArrowDownToLine,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork"
@@ -55,10 +56,12 @@ export function PortfolioView() {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Active Positions")
   const [selectedFrame, setSelectedFrame] = useState<(typeof TIME_FRAMES)[number]>("7D")
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
+  const [isWithdrawCustodyModalOpen, setIsWithdrawCustodyModalOpen] = useState(false)
   const [isAddFundsModalOpen, setIsAddFundsModalOpen] = useState(false)
+  const [isWithdrawTradingModalOpen, setIsWithdrawTradingModalOpen] = useState(false)
   const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const { unifiedBalances, depositToCustody, addToTradingBalance, isAuthenticated } = useYellowNetwork()
+  const { unifiedBalances, depositToCustody, withdrawFromCustody, addToTradingBalance, withdrawFromTradingBalance, isAuthenticated } = useYellowNetwork()
 
   // Fetch onchain USDC balance from wallet
   const { data: usdcBalance } = useBalance({
@@ -195,18 +198,32 @@ export function PortfolioView() {
               Platform balance for trading
             </p>
             {isConnected && (
-              <button
-                onClick={() => setIsDepositModalOpen(true)}
-                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90"
-                style={{
-                  background: "rgba(255,215,0,0.15)",
-                  color: "#FFD700",
-                  fontFamily: "var(--font-figtree), Figtree",
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Deposit
-              </button>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => setIsDepositModalOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90"
+                  style={{
+                    background: "rgba(255,215,0,0.15)",
+                    color: "#FFD700",
+                    fontFamily: "var(--font-figtree), Figtree",
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Deposit
+                </button>
+                <button
+                  onClick={() => setIsWithdrawCustodyModalOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 border"
+                  style={{
+                    borderColor: "rgba(255,215,0,0.3)",
+                    color: "#FFD700",
+                    fontFamily: "var(--font-figtree), Figtree",
+                  }}
+                >
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Withdraw
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -245,17 +262,31 @@ export function PortfolioView() {
               Instant trading balance
             </p>
             {isConnected && isAuthenticated && (
-              <button
-                onClick={() => setIsAddFundsModalOpen(true)}
-                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-background transition-all hover:opacity-90"
-                style={{
-                  background: "#FFD700",
-                  fontFamily: "var(--font-figtree), Figtree",
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Add Funds
-              </button>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => setIsAddFundsModalOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-background transition-all hover:opacity-90"
+                  style={{
+                    background: "#FFD700",
+                    fontFamily: "var(--font-figtree), Figtree",
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Funds
+                </button>
+                <button
+                  onClick={() => setIsWithdrawTradingModalOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 border"
+                  style={{
+                    borderColor: "rgba(255,215,0,0.5)",
+                    color: "#FFD700",
+                    fontFamily: "var(--font-figtree), Figtree",
+                  }}
+                >
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Withdraw
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -506,6 +537,30 @@ export function PortfolioView() {
         title="Add to Trading Account"
         description="Transfer funds from custody to your instant trading balance. This creates a channel, transfers the amount, and closes the channel."
         actionLabel="Add Funds"
+      />
+
+      {/* Withdraw from Custody Modal */}
+      <AmountModal
+        isOpen={isWithdrawCustodyModalOpen}
+        onClose={() => setIsWithdrawCustodyModalOpen(false)}
+        onConfirm={async (amount) => {
+          await withdrawFromCustody(amount)
+        }}
+        title="Withdraw from Trading Wallet"
+        description="Withdraw USDC from the custody contract back to your wallet. This is an on-chain transaction."
+        actionLabel="Withdraw"
+      />
+
+      {/* Withdraw from Trading Balance Modal */}
+      <AmountModal
+        isOpen={isWithdrawTradingModalOpen}
+        onClose={() => setIsWithdrawTradingModalOpen(false)}
+        onConfirm={async (amount) => {
+          await withdrawFromTradingBalance(amount)
+        }}
+        title="Withdraw from Trading Account"
+        description="Transfer funds from your instant trading balance back to custody. This resizes the channel to move funds."
+        actionLabel="Withdraw"
       />
     </div>
   )

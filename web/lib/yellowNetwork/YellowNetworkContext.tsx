@@ -1188,6 +1188,38 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     }
   }, [address, walletClient, publicClient, addLog]);
 
+  // Withdraw USDC from custody contract (on-chain) using NitroliteClient
+  const withdrawFromCustody = useCallback(async (amount: string): Promise<{ txHash: string }> => {
+    if (!address || !walletClient || !publicClient) {
+      throw new Error('Wallet not connected');
+    }
+
+    if (!nitroliteClientRef.current) {
+      throw new Error('Nitrolite client not initialized. Please reconnect.');
+    }
+
+    const amountInUnits = BigInt(Math.floor(parseFloat(amount) * 1_000_000)); // USDC has 6 decimals
+    addLog(`Withdrawing ${amount} USDC from custody...`);
+    toast.info(`Withdrawing ${amount} USDC from custody...`);
+
+    try {
+      const client = nitroliteClientRef.current;
+
+      // Withdraw from custody using NitroliteClient
+      addLog('Withdrawing from custody contract...');
+      const withdrawHash = await client.withdrawal(YELLOW_CONFIG.testToken, amountInUnits);
+      addLog('Withdrawal successful!', { txHash: withdrawHash });
+      toast.success(`Withdrew ${amount} USDC from custody!`);
+
+      return { txHash: withdrawHash };
+    } catch (error) {
+      console.error('Withdrawal failed:', error);
+      addLog('Withdrawal failed', { error: String(error) });
+      toast.error('Withdrawal failed');
+      throw error;
+    }
+  }, [address, walletClient, publicClient, addLog]);
+
   // Add funds to trading balance (resize channel flow)
   // Creates channel if needed, resizes with +amount for resize and -amount for allocate, then closes
   const addToTradingBalance = useCallback(async (amount: string): Promise<void> => {
@@ -1466,6 +1498,209 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     }
   }, [isAuthenticated, sessionKey, address, channel, sendMessage, addLog, refreshLedgerEntries, closeChannel]);
 
+  // Withdraw from trading balance (resize channel flow)
+  // Resizes with -amount (unified → channel) and resize_amount -amount (channel → custody)
+  const withdrawFromTradingBalance = useCallback(async (amount: string): Promise<void> => {
+    if (!isAuthenticated || !sessionKey || !address) {
+      throw new Error('Not authenticated');
+    }
+
+    const amountInUnits = BigInt(Math.floor(parseFloat(amount) * 1_000_000)); // USDC has 6 decimals
+    addLog(`Withdrawing ${amount} USDC from trading balance...`);
+    toast.info(`Withdrawing ${amount} USDC from trading balance...`);
+
+    const sessionSigner = createECDSAMessageSigner(sessionKey.privateKey);
+    let currentChannelId = channel?.channelId;
+
+    // Helper to create channel and wait for response (same as addToTradingBalance)
+    const createChannelAndWait = async (): Promise<string> => {
+      const { channelInfo, fullResponse } = await new Promise<{ channelInfo: ChannelInfo; fullResponse: any }>((resolve, reject) => {
+        createChannelResolverRef.current = {
+          resolve,
+          reject: (error: Error) => {
+            const errorMsg = error.message || '';
+            const existingChannelMatch = errorMsg.match(/already exists: (0x[a-fA-F0-9]+)/);
+            if (existingChannelMatch) {
+              const existingChannelId = existingChannelMatch[1];
+              addLog('Found existing channel, using it instead', { channelId: existingChannelId });
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('yellow_channel_id', existingChannelId);
+              }
+              const existingChannelInfo: ChannelInfo = {
+                channelId: existingChannelId,
+                balance: '0',
+                token: YELLOW_CONFIG.testToken,
+                chainId: YELLOW_CONFIG.chainId,
+                createdAt: Date.now(),
+              };
+              setChannel(existingChannelInfo);
+              resolve({ channelInfo: existingChannelInfo, fullResponse: null });
+            } else {
+              reject(error);
+            }
+          },
+        };
+
+        const doCreate = async () => {
+          try {
+            addLog('Creating channel for withdrawal...');
+            const createChannelMsg = await createCreateChannelMessage(sessionSigner, {
+              chain_id: YELLOW_CONFIG.chainId,
+              token: YELLOW_CONFIG.testToken,
+            });
+            if (!sendMessage(createChannelMsg)) {
+              throw new Error('Failed to send create channel message');
+            }
+          } catch (error) {
+            reject(error as Error);
+            createChannelResolverRef.current = null;
+          }
+        };
+
+        doCreate();
+        setTimeout(() => {
+          if (createChannelResolverRef.current) {
+            createChannelResolverRef.current.reject(new Error('Channel creation timeout'));
+            createChannelResolverRef.current = null;
+          }
+        }, 30000);
+      });
+
+      if (fullResponse && nitroliteClientRef.current) {
+        const { channel: channelData, state, serverSignature } = fullResponse;
+        addLog('Creating channel on-chain...');
+        const unsignedInitialState = {
+          intent: state.intent,
+          version: BigInt(state.version),
+          data: state.stateData,
+          allocations: state.allocations.map((a: any) => ({
+            destination: a.destination as `0x${string}`,
+            token: a.token as `0x${string}`,
+            amount: BigInt(a.amount),
+          })),
+        };
+        const { txHash } = await nitroliteClientRef.current.createChannel({
+          channel: {
+            ...channelData,
+            challenge: BigInt(channelData.challenge),
+            nonce: BigInt(channelData.nonce),
+          },
+          unsignedInitialState,
+          serverSignature,
+        });
+        addLog(`Channel created on-chain (tx: ${txHash})`);
+        addLog('Waiting for channel to be indexed (10 seconds)...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
+
+      return channelInfo.channelId;
+    };
+
+    // Helper to resize channel for withdrawal (unified → custody)
+    const resizeChannelForWithdraw = async (channelId: string): Promise<void> => {
+      const resizeData = await new Promise<any>((resolve, reject) => {
+        fundChannelResolverRef.current = { resolve, reject };
+
+        const doResize = async () => {
+          try {
+            // For withdrawal:
+            // allocate_amount: +X (move from unified balance back to channel)
+            // resize_amount: -X (move from channel to custody)
+            addLog(`Resizing channel for withdrawal: allocate_amount=+${amountInUnits.toString()}, resize_amount=-${amountInUnits.toString()}`);
+            const resizeMsg = await createResizeChannelMessage(sessionSigner, {
+              channel_id: channelId as `0x${string}`,
+              resize_amount: -amountInUnits,
+              allocate_amount: amountInUnits,
+              funds_destination: address,
+            });
+            if (!sendMessage(resizeMsg)) {
+              throw new Error('Failed to send resize message');
+            }
+          } catch (error) {
+            reject(error);
+            fundChannelResolverRef.current = null;
+          }
+        };
+
+        doResize();
+        setTimeout(() => {
+          if (fundChannelResolverRef.current) {
+            fundChannelResolverRef.current.reject(new Error('Resize timeout'));
+            fundChannelResolverRef.current = null;
+          }
+        }, 30000);
+      });
+
+      addLog('Resize approved by server, executing on-chain...');
+
+      if (!nitroliteClientRef.current) {
+        throw new Error('NitroliteClient not initialized');
+      }
+
+      const previousState = await nitroliteClientRef.current.getChannelData(channelId as `0x${string}`);
+      addLog('Previous state fetched for proof');
+
+      const { txHash } = await nitroliteClientRef.current.resizeChannel({
+        resizeState: {
+          channelId: resizeData.channelId as `0x${string}`,
+          intent: resizeData.state.intent as StateIntent,
+          version: BigInt(resizeData.state.version),
+          data: resizeData.state.stateData as `0x${string}`,
+          allocations: resizeData.state.allocations.map((a: any) => ({
+            destination: a.destination as `0x${string}`,
+            token: a.token as `0x${string}`,
+            amount: BigInt(a.amount),
+          })),
+          serverSignature: resizeData.serverSignature as `0x${string}`,
+        },
+        proofStates: [previousState.lastValidState],
+      });
+
+      addLog(`Channel resized on-chain (tx: ${txHash})`);
+    };
+
+    try {
+      // Step 1: Ensure we have a channel
+      if (!currentChannelId) {
+        currentChannelId = await createChannelAndWait();
+        addLog('Channel ready for withdrawal', { channelId: currentChannelId });
+      }
+
+      // Step 2: Resize channel for withdrawal
+      try {
+        await resizeChannelForWithdraw(currentChannelId);
+        addLog('Withdrawal resize complete: Funds moved to custody');
+      } catch (error: any) {
+        const errorMsg = error.message || '';
+        if (errorMsg.includes('not found') || errorMsg.includes('channel')) {
+          addLog('Channel not found, creating new channel...');
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('yellow_channel_id');
+          }
+          setChannel(null);
+          currentChannelId = await createChannelAndWait();
+          await resizeChannelForWithdraw(currentChannelId);
+          addLog('Withdrawal complete after channel recreation');
+        } else {
+          throw error;
+        }
+      }
+
+      addLog('Withdrawal complete! Channel kept open for future use.');
+
+      // Refresh ledger entries to show updated balance
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await refreshLedgerEntries();
+
+      toast.success(`Withdrew ${amount} USDC from trading balance!`);
+    } catch (error) {
+      console.error('Withdraw from trading balance failed:', error);
+      addLog('Withdraw from trading balance failed', { error: String(error) });
+      toast.error('Failed to withdraw from trading balance');
+      throw error;
+    }
+  }, [isAuthenticated, sessionKey, address, channel, sendMessage, addLog, refreshLedgerEntries]);
+
   // Create an app session
   const createAppSession = useCallback(async (
     participants: string[],
@@ -1733,7 +1968,9 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     requestFaucet,
     clearActivityLog,
     depositToCustody,
+    withdrawFromCustody,
     addToTradingBalance,
+    withdrawFromTradingBalance,
     refreshLedgerEntries,
     createAppSession,
     submitAppState,
