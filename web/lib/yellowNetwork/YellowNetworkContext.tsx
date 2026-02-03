@@ -9,7 +9,7 @@ import React, {
   useEffect,
 } from 'react';
 import { useAccount, useWalletClient, usePublicClient, useSwitchChain } from 'wagmi';
-import { baseSepolia } from 'wagmi/chains';
+import { sepolia } from 'wagmi/chains';
 import { toast } from 'sonner';
 import {
   NitroliteClient,
@@ -26,6 +26,7 @@ import {
   type AuthChallengeResponse,
   type AuthRequestParams,
   type Allocation,
+  type RPCLedgerEntry,
   StateIntent,
 } from '@erc7824/nitrolite';
 
@@ -36,6 +37,8 @@ import type {
   ActivityLogEntry,
   ConnectionStatus,
   CloseChannelResolver,
+  UnifiedBalance,
+  LedgerEntry,
 } from './types';
 import { YELLOW_CONFIG, AUTH_SCOPE, SESSION_DURATION, getAuthDomain } from './config';
 import { getOrCreateSessionKey, clearSessionKey, generateSessionKey, storeSessionKey } from './sessionKey';
@@ -87,6 +90,8 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [sessionKey, setSessionKey] = useState<SessionKey | null>(null);
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
+  const [unifiedBalances, setUnifiedBalances] = useState<UnifiedBalance[]>([]);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
 
   // Keep refs updated
@@ -138,6 +143,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       try {
         const response = parseAnyRPCResponse(event.data);
         console.log('Parsed response:', response);
+        console.log('Response method:', response.method, 'Expected:', RPCMethod.GetLedgerEntries);
         addLog(`Received: ${response.method}`, response);
 
         const currentWalletClient = walletClientRef.current;
@@ -202,6 +208,37 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
           reconnectAttemptRef.current = 0;
           addLog('Authentication successful! ✅');
           toast.success('Authenticated with Yellow Network!');
+
+          // Fetch ledger entries after authentication to calculate balance
+          if (currentAddress && currentSessionKey) {
+            try {
+              // Manually construct the request with wallet parameter (like CLI does)
+              const requestId = Date.now();
+              const timestamp = Math.floor(Date.now() / 1000);
+              // CLI uses: wallet, account_id, asset
+              const params = {
+                wallet: currentAddress,
+                account_id: currentAddress,
+                asset: 'usdc',
+              };
+
+              // Create and sign the message
+              const sessionSigner = createECDSAMessageSigner(currentSessionKey.privateKey);
+              const payload = [requestId, 'get_ledger_entries', params, timestamp] as const;
+              const signature = await sessionSigner(payload as any);
+
+              const entriesMsg = JSON.stringify({
+                req: payload,
+                sig: [signature],
+              });
+
+              console.log('📤 Sending ledger entries request:', entriesMsg);
+              sendMessage(entriesMsg);
+              addLog('Requested ledger entries', { wallet: currentAddress, accountId: currentAddress, asset_symbol: 'usdc' });
+            } catch (error) {
+              console.error('Failed to request ledger entries:', error);
+            }
+          }
         }
         // Handle channel creation response
         else if (response.method === 'create_channel') {
@@ -293,6 +330,39 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
             }
           }
         }
+        // Handle ledger entries response - calculate balance from credit/debit
+        else if (response.method === RPCMethod.GetLedgerEntries) {
+          console.log('📊 Raw ledger entries response:', JSON.stringify(response.params));
+          // Try both camelCase and snake_case field names
+          const params = response.params as { ledgerEntries?: RPCLedgerEntry[]; ledger_entries?: RPCLedgerEntry[] };
+          const entries: RPCLedgerEntry[] = params?.ledgerEntries || params?.ledger_entries || [];
+          console.log('📊 Ledger entries parsed:', entries);
+
+          // Store ledger entries for transaction history
+          const formattedEntries: LedgerEntry[] = entries.map((entry) => ({
+            id: entry.id,
+            accountId: entry.accountId as string,
+            accountType: entry.accountType,
+            asset: entry.asset,
+            participant: entry.participant as string,
+            credit: entry.credit,
+            debit: entry.debit,
+            createdAt: entry.createdAt instanceof Date ? entry.createdAt.toISOString() : String(entry.createdAt),
+          }));
+          setLedgerEntries(formattedEntries);
+
+          // Calculate balance: sum of credits - sum of debits
+          const totalCredit = entries.reduce((sum, entry) => sum + parseFloat(entry.credit || '0'), 0);
+          const totalDebit = entries.reduce((sum, entry) => sum + parseFloat(entry.debit || '0'), 0);
+          const balance = (totalCredit - totalDebit).toString();
+
+          // Get asset from first entry or default to 'usdc'
+          const asset = entries.length > 0 ? entries[0].asset : 'usdc';
+
+          console.log('📊 Calculated balance:', { totalCredit, totalDebit, balance, asset });
+          setUnifiedBalances([{ asset, amount: balance }]);
+          addLog('Ledger entries processed', { entries: entries.length, balance, totalCredit, totalDebit });
+        }
         // Handle errors
         else if (response.method === RPCMethod.Error) {
           const error = response.params?.error || 'Unknown error';
@@ -355,11 +425,11 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       addLog('Starting connection...');
 
       // Switch to Base Sepolia if needed
-      if (chain?.id !== baseSepolia.id) {
+      if (chain?.id !== sepolia.id) {
         setConnectionStatus('switching_chain');
         addLog('Switching to Base Sepolia...');
         try {
-          await switchChain({ chainId: baseSepolia.id });
+          await switchChain({ chainId: sepolia.id });
           await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (error) {
           toast.error('Please switch to Base Sepolia network');
@@ -497,6 +567,26 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     handleMessage,
     addLog,
   ]);
+
+  // Auto-connect when wallet is connected
+  useEffect(() => {
+    // Only auto-connect if:
+    // - Wallet is connected (address exists)
+    // - Wallet client is available
+    // - Session key is initialized
+    // - Not already connected or in process of connecting
+    if (
+      address &&
+      walletClient &&
+      sessionKey &&
+      !isConnected &&
+      !isAuthenticated &&
+      connectionStatus === 'disconnected'
+    ) {
+      console.log('🔄 Auto-connecting to Yellow Network...');
+      connect();
+    }
+  }, [address, walletClient, sessionKey, isConnected, isAuthenticated, connectionStatus, connect]);
 
   // Disconnect from Yellow Network
   const disconnect = useCallback(() => {
@@ -746,6 +836,8 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     connectionStatus,
     sessionKey,
     channel,
+    unifiedBalances,
+    ledgerEntries,
     activityLog,
 
     // Actions

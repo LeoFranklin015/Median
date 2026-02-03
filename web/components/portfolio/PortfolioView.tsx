@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { useAccount } from "wagmi"
+import { useAccount, useBalance, useReadContract } from "wagmi"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
+import { formatUnits } from "viem"
 import { motion } from "framer-motion"
 import {
   Info,
@@ -15,6 +16,25 @@ import {
   Layers,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useYellowNetwork } from "@/lib/yellowNetwork"
+
+// Sepolia addresses
+const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
+const CUSTODY_CONTRACT_ADDRESS = "0x34BaaF75820C4256D25A0bF19c8B5FAdEf9A4d4C" as const
+
+// ABI for custody contract getAccountsBalances function
+const custodyContractABI = [
+  {
+    inputs: [
+      { name: "accounts", type: "address[]" },
+      { name: "tokens", type: "address[]" },
+    ],
+    name: "getAccountsBalances",
+    outputs: [{ name: "", type: "uint256[][]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const
 
 const TIME_FRAMES = ["1D", "7D", "30D", "90D"] as const
 const TABS = ["Active Positions", "Realized PnL", "Transaction History"] as const
@@ -32,8 +52,51 @@ const WIN_RATE_LEGEND = [
 export function PortfolioView() {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Active Positions")
   const [selectedFrame, setSelectedFrame] = useState<(typeof TIME_FRAMES)[number]>("7D")
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
+  const { unifiedBalances } = useYellowNetwork()
+
+  // Fetch onchain USDC balance from wallet
+  const { data: usdcBalance } = useBalance({
+    address: address,
+    token: USDC_ADDRESS,
+    chainId: 11155111, // Sepolia chain ID
+  })
+
+  // Fetch custody balance from contract
+  const { data: custodyBalanceData } = useReadContract({
+    address: CUSTODY_CONTRACT_ADDRESS,
+    abi: custodyContractABI,
+    functionName: "getAccountsBalances",
+    args: address ? [[address], [USDC_ADDRESS]] : undefined,
+    chainId: 11155111, // Sepolia chain ID
+    query: {
+      enabled: !!address,
+    },
+  })
+
+  // Format wallet balance (USDC has 6 decimals)
+  const walletBalanceFormatted = usdcBalance
+    ? parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals)).toFixed(2)
+    : "0.00"
+
+  // Format custody balance (USDC has 6 decimals)
+  const custodyBalanceFormatted = custodyBalanceData && custodyBalanceData[0]?.[0]
+    ? parseFloat(formatUnits(custodyBalanceData[0][0], 6)).toFixed(2)
+    : "0.00"
+
+  // Get unified balance from Yellow Network (USDC)
+  const usdcUnifiedBalance = unifiedBalances.find(b => b.asset.toLowerCase() === 'usdc')
+  const unifiedBalanceFormatted = usdcUnifiedBalance
+    ? parseFloat(usdcUnifiedBalance.amount).toFixed(2)
+    : "0.00"
+
+  // Calculate total balance (wallet + custody + unified)
+  const totalBalance = (
+    parseFloat(walletBalanceFormatted) +
+    parseFloat(custodyBalanceFormatted) +
+    parseFloat(unifiedBalanceFormatted)
+  ).toFixed(2)
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -94,9 +157,9 @@ export function PortfolioView() {
             >
               Wallet Balance
             </p>
-            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-2xl font-bold text-foreground">${walletBalanceFormatted}</p>
             <p className="text-xs text-muted-foreground mt-2">
-              Your on-chain wallet
+              Your on-chain USDC wallet
             </p>
           </div>
         </div>
@@ -121,11 +184,11 @@ export function PortfolioView() {
               className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1"
               style={{ fontFamily: "var(--font-figtree), Figtree" }}
             >
-              Custody Wallet Balance
+              Trading Wallet Balance
             </p>
-            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-2xl font-bold text-foreground">${custodyBalanceFormatted}</p>
             <p className="text-xs text-muted-foreground mt-2">
-              Funds in trading custody
+              Platform balance for trading
             </p>
           </div>
         </div>
@@ -157,11 +220,11 @@ export function PortfolioView() {
                 color: "#FFD700",
               }}
             >
-              Unified Balance
+              Trading Account Balance
             </p>
-            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-2xl font-bold text-foreground">${unifiedBalanceFormatted}</p>
             <p className="text-xs text-muted-foreground mt-2">
-              Off-chain unified balance
+              Instant trading balance
             </p>
           </div>
         </div>
@@ -183,7 +246,7 @@ export function PortfolioView() {
             Total Balance
           </h3>
           <p className="text-2xl lg:text-3xl font-semibold text-foreground mb-4">
-            $0
+            ${totalBalance}
           </p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-muted-foreground">

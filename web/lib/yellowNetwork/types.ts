@@ -33,6 +33,24 @@ export type ConnectionStatus =
   | 'authenticated'
   | 'error';
 
+// Unified balance type
+export interface UnifiedBalance {
+  asset: string;
+  amount: string;
+}
+
+// Ledger entry for transaction history
+export interface LedgerEntry {
+  id: number;
+  accountId: string;
+  accountType: number;
+  asset: string;
+  participant: string;
+  credit: string;
+  debit: string;
+  createdAt: string;
+}
+
 // Yellow Network context state
 export interface YellowNetworkState {
   // Connection
@@ -45,6 +63,12 @@ export interface YellowNetworkState {
 
   // Channel
   channel: ChannelInfo | null;
+
+  // Balances
+  unifiedBalances: UnifiedBalance[];
+
+  // Ledger entries (transaction history)
+  ledgerEntries: LedgerEntry[];
 
   // Activity
   activityLog: ActivityLogEntry[];
