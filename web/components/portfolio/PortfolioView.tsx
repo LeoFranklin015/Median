@@ -14,9 +14,11 @@ import {
   Settings,
   Shield,
   Layers,
+  Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork"
+import { AmountModal } from "./AmountModal"
 
 // Sepolia addresses
 const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
@@ -52,9 +54,11 @@ const WIN_RATE_LEGEND = [
 export function PortfolioView() {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Active Positions")
   const [selectedFrame, setSelectedFrame] = useState<(typeof TIME_FRAMES)[number]>("7D")
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
+  const [isAddFundsModalOpen, setIsAddFundsModalOpen] = useState(false)
   const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const { unifiedBalances } = useYellowNetwork()
+  const { unifiedBalances, depositToCustody, addToTradingBalance, isAuthenticated } = useYellowNetwork()
 
   // Fetch onchain USDC balance from wallet
   const { data: usdcBalance } = useBalance({
@@ -190,6 +194,20 @@ export function PortfolioView() {
             <p className="text-xs text-muted-foreground mt-2">
               Platform balance for trading
             </p>
+            {isConnected && (
+              <button
+                onClick={() => setIsDepositModalOpen(true)}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90"
+                style={{
+                  background: "rgba(255,215,0,0.15)",
+                  color: "#FFD700",
+                  fontFamily: "var(--font-figtree), Figtree",
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Deposit
+              </button>
+            )}
           </div>
         </div>
 
@@ -226,6 +244,19 @@ export function PortfolioView() {
             <p className="text-xs text-muted-foreground mt-2">
               Instant trading balance
             </p>
+            {isConnected && isAuthenticated && (
+              <button
+                onClick={() => setIsAddFundsModalOpen(true)}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-background transition-all hover:opacity-90"
+                style={{
+                  background: "#FFD700",
+                  fontFamily: "var(--font-figtree), Figtree",
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Add Funds
+              </button>
+            )}
           </div>
         </div>
       </motion.div>
@@ -452,6 +483,30 @@ export function PortfolioView() {
           )}
         </div>
       </motion.div>
+
+      {/* Deposit to Custody Modal */}
+      <AmountModal
+        isOpen={isDepositModalOpen}
+        onClose={() => setIsDepositModalOpen(false)}
+        onConfirm={async (amount) => {
+          await depositToCustody(amount)
+        }}
+        title="Deposit to Trading Wallet"
+        description="Deposit USDC from your wallet to the custody contract. This is an on-chain transaction."
+        actionLabel="Deposit"
+      />
+
+      {/* Add Funds to Trading Balance Modal */}
+      <AmountModal
+        isOpen={isAddFundsModalOpen}
+        onClose={() => setIsAddFundsModalOpen(false)}
+        onConfirm={async (amount) => {
+          await addToTradingBalance(amount)
+        }}
+        title="Add to Trading Account"
+        description="Transfer funds from custody to your instant trading balance. This creates a channel, transfers the amount, and closes the channel."
+        actionLabel="Add Funds"
+      />
     </div>
   )
 }

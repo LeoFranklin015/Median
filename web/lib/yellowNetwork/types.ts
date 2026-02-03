@@ -84,6 +84,9 @@ export interface YellowNetworkActions {
   closeChannel: (channelId?: string) => Promise<{ txHash: string }>;
   requestFaucet: () => Promise<void>;
   clearActivityLog: () => void;
+  depositToCustody: (amount: string) => Promise<{ txHash: string }>;
+  addToTradingBalance: (amount: string) => Promise<void>;
+  refreshLedgerEntries: () => Promise<void>;
 }
 
 // Combined context value
