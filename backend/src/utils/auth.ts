@@ -29,14 +29,25 @@ export const walletClient = createWalletClient({
     transport: http(),
 })
 export async function authenticate(client: Client): Promise<SessionKey> {
-    const allowances = [{
-        asset: 'usdc',
-        amount: '1000000000',
-    },{
-        asset: 'eurc',
-        amount: '1000000000',
-    }
-        ];
+    const allowances = [
+        { asset: 'usdc', amount: '1000000000' },
+        // Stock tokens
+        { asset: 'AAPL', amount: '1000000000' },
+        { asset: 'AMZN', amount: '1000000000' },
+        { asset: 'GOOG', amount: '1000000000' },
+        { asset: 'MSFT', amount: '1000000000' },
+        { asset: 'TSLA', amount: '1000000000' },
+        { asset: 'NVDA', amount: '1000000000' },
+        { asset: 'PFE', amount: '1000000000' },
+        { asset: 'INTC', amount: '1000000000' },
+        { asset: 'SOFI', amount: '1000000000' },
+        { asset: 'OPEN', amount: '1000000000' },
+        { asset: 'ONDS', amount: '1000000000' },
+        { asset: 'META', amount: '1000000000' },
+        { asset: 'NFLX', amount: '1000000000' },
+        { asset: 'AMD', amount: '1000000000' },
+        { asset: 'JPM', amount: '1000000000' },
+    ];
     const sessionKey = generateSessionKey();
     const sessionExpireTimestamp = String(Math.floor(Date.now() / 1000) + SESSION_DURATION);
 

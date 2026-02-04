@@ -798,24 +798,24 @@ class WebSocketService {
                 return;
             }
 
-            // Send stock tokens (eurc) back to the sender
+            // Send stock tokens back to the sender using the actual ticker
             const stockQuantity = filledData.filledQuantity;
             const market = filledData.market || 'AAPL/USDC';
-            const ticker = market.split('/')[0].toLowerCase();
+            const ticker = market.split('/')[0].toUpperCase(); // e.g., 'AAPL', 'MSFT', 'TSLA'
 
             // filledQuantity is already in human-readable format, use as-is
             const stockAmount = String(stockQuantity);
 
-            console.log(`💸 Sending ${stockQuantity} ${ticker} to ${senderAddress}`);
+            console.log(`💸 Sending ${stockQuantity} ${ticker} tokens to ${senderAddress}`);
 
             await this.transfer(senderAddress, [
                 {
-                    asset: 'eurc', // Use eurc as the stock token asset
+                    asset: ticker, // Use the actual stock ticker (AAPL, MSFT, TSLA, etc.)
                     amount: stockAmount
                 }
             ]);
 
-            console.log(`✅ Stock tokens sent successfully to ${senderAddress}`);
+            console.log(`✅ ${ticker} tokens sent successfully to ${senderAddress}`);
 
         } catch (error) {
             console.error('❌ Error processing transfer and sending stock tokens:', error);
