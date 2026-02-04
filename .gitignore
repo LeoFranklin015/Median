@@ -7,3 +7,5 @@ nitrolite
 contracts/out
 contracts/cache
 contracts/broadcast
+contracts/.env
+web/bun.lock

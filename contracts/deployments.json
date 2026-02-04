@@ -1,0 +1,31 @@
+{
+  "contracts": {
+    "BalanceChecker": "0x905eA96D27A1584E9EE0100072D8A32F1F552f59",
+    "Custody": "0xc4afa9235be46a337850B33B12C222F6a3ba1EEC",
+    "SimpleConsensus": "0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3"
+  },
+  "networks": {
+    "sepolia": {
+      "chainId": 11155111,
+      "status": "deployed",
+      "explorerUrl": "https://sepolia.etherscan.io"
+    },
+    "arbitrum_sepolia": {
+      "chainId": 421614,
+      "status": "deployed",
+      "explorerUrl": "https://sepolia.arbiscan.io"
+    },
+    "optimism_sepolia": {
+      "chainId": 11155420,
+      "status": "deployed",
+      "explorerUrl": "https://sepolia-optimism.etherscan.io"
+    },
+    "base_sepolia": {
+      "chainId": 84532,
+      "status": "deployed",
+      "explorerUrl": "https://sepolia.basescan.org"
+    }
+  },
+  "deployer": "0x54Ae03dF22A1812978b2cA4D73f0D62eFEf0ac22",
+  "salt": "keccak256('median:v1')"
+}
