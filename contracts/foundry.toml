@@ -4,3 +4,27 @@ out = "out"
 libs = ["lib"]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+# ---- Multi-chain configuration ----
+#
+# Use these names with `--rpc-url <name>` (e.g. `--rpc-url sepolia`).
+# Values are environment-variable interpolations so you don't commit secrets.
+[rpc_endpoints]
+anvil = "http://127.0.0.1:8545"
+sepolia = "${SEPOLIA_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_URL}"
+optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
+mainnet = "${MAINNET_RPC_URL}"
+
+# Optional: enables `forge verify-contract` when keys are provided.
+# Chain IDs:
+# - sepolia: 11155111
+# - base sepolia: 84532
+# - arbitrum sepolia: 421614
+# - optimism sepolia: 11155420
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}", chain = 11155111 }
+base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532 }
+arbitrum_sepolia = { key = "${ARBISCAN_API_KEY}", chain = 421614 }
+optimism_sepolia = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", chain = 11155420 }

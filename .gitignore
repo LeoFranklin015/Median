@@ -2,3 +2,8 @@ web/bun.lock
 .claude/settings.local.json
 
 nitrolite
+
+# Foundry (contracts/)
+contracts/out
+contracts/cache
+contracts/broadcast
