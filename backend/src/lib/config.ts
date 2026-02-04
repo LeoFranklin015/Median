@@ -18,7 +18,7 @@ export const AUTH_ALLOWANCES = [
 
 export default function getContractAddresses() {
     return {
-        custody: '0x34BaaF75820C4256D25A0bF19c8B5FAdEf9A4d4C',
-        adjudicator: '0xD3F3615E2F5a60bF4e4f8e7ac80EBD21038311Bc',
+        custody: '0xc4afa9235be46a337850B33B12C222F6a3ba1EEC',
+        adjudicator: '0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3',
     }
 }

@@ -24,6 +24,11 @@
       "chainId": 84532,
       "status": "deployed",
       "explorerUrl": "https://sepolia.basescan.org"
+    },
+    "arc_testnet": {
+      "chainId": 5042002,
+      "status": "deployed",
+      "explorerUrl": "https://testnet.arcscan.app"
     }
   },
   "deployer": "0x54Ae03dF22A1812978b2cA4D73f0D62eFEf0ac22",

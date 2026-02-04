@@ -23,7 +23,7 @@ import { AmountModal } from "./AmountModal"
 
 // Sepolia addresses
 const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
-const CUSTODY_CONTRACT_ADDRESS = "0x34BaaF75820C4256D25A0bF19c8B5FAdEf9A4d4C" as const
+const CUSTODY_CONTRACT_ADDRESS = "0xc4afa9235be46a337850B33B12C222F6a3ba1EEC" as const
 
 // ABI for custody contract getAccountsBalances function
 const custodyContractABI = [

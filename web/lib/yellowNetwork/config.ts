@@ -2,8 +2,8 @@
 export const YELLOW_CONFIG = {
   ws: 'ws://localhost:8000/ws',
   faucet: 'https://clearnet-sandbox.yellow.com/faucet/requestTokens',
-  custody: '0x34BaaF75820C4256D25A0bF19c8B5FAdEf9A4d4C' as const,
-  adjudicator: '0x7c7ccbc98469BCC6c926307794fDfB11F2' as const,
+  custody: '0xc4afa9235be46a337850B33B12C222F6a3ba1EEC' as const,
+  adjudicator: '0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3' as const,
   testToken: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' as const, // USDC on Sepolia
   chainId: 11155111, // Ethereum Sepolia
 } as const;
