@@ -20,7 +20,9 @@ const bridgeUSDC = async (): Promise<void> => {
     // Use the same adapter for the source and destination blockchains
     const result = await kit.bridge({
       from: { adapter, chain: "Base_Sepolia" },
-      to: { adapter, chain: "Arbitrum_Sepolia" },
+      to: { adapter, chain: "Arbitrum_Sepolia" 
+        // recipientAddress: "0x1234abcd1234abcd1234abcd1234abcd1234abcd", // Specify a recipient address if you want to directly transfer it to him ?
+      },
       amount: "1.00",
     });
 
