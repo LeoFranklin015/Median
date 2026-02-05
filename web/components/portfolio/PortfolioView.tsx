@@ -15,6 +15,9 @@ import {
   ArrowDownToLine,
   TrendingUp,
   TrendingDown,
+  BarChart3,
+  Target,
+  Zap,
 } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { cn } from "@/lib/utils"
@@ -415,6 +418,94 @@ export function PortfolioView() {
           )}
         </motion.div>
       </div>
+
+      {/* Detail boxes below */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6"
+      >
+        <div
+          className="rounded-xl bg-card border border-border p-5"
+          style={{ fontFamily: "var(--font-figtree), Figtree" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
+            >
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Total Trades
+            </span>
+          </div>
+          <p className="text-xl font-bold text-foreground">--</p>
+          <p className="text-xs text-muted-foreground mt-1">Lifetime trade count</p>
+        </div>
+
+        <div
+          className="rounded-xl bg-card border border-border p-5"
+          style={{ fontFamily: "var(--font-figtree), Figtree" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+            >
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              7D Realized PnL
+            </span>
+          </div>
+          <p className="text-xl font-bold text-foreground">$0.00</p>
+          <p className="text-xs text-emerald-500/80 mt-1">0.00% this week</p>
+        </div>
+
+        <div
+          className="rounded-xl bg-card border border-border p-5"
+          style={{ fontFamily: "var(--font-figtree), Figtree" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
+            >
+              <Target className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              7D Win Rate
+            </span>
+          </div>
+          <p className="text-xl font-bold text-foreground">0.00%</p>
+          <p className="text-xs text-muted-foreground mt-1">Profitable trades</p>
+        </div>
+
+        <div
+          className="rounded-xl bg-card border border-border p-5"
+          style={{ fontFamily: "var(--font-figtree), Figtree" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center"
+              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
+            >
+              <Zap className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Assets Held
+            </span>
+          </div>
+          <p className="text-xl font-bold text-foreground">
+            {stockHoldings.length > 0 ? stockHoldings.length : 0}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {stockHoldings.length === 1 ? "Unique position" : "Unique positions"}
+          </p>
+        </div>
+      </motion.div>
 
       <AmountModal
         isOpen={isDepositModalOpen}
