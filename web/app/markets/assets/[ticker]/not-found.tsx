@@ -1,10 +1,10 @@
 import Link from "next/link"
-import { MarketNavbar } from "@/components/markets/MarketNavbar"
+import { PortfolioNavbar } from "@/components/PortfolioNavbar"
 
 export default function AssetNotFound() {
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <MarketNavbar />
+    <div className="min-h-screen bg-background">
+      <PortfolioNavbar />
       <main className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center min-h-[50vh]">
         <h1 className="text-2xl font-semibold text-zinc-900 mb-2">
           Asset not found

@@ -1,6 +1,6 @@
 "use client"
 
-import { MarketNavbar } from "@/components/markets/MarketNavbar"
+import { PortfolioNavbar } from "@/components/PortfolioNavbar"
 import { MarketTickerBar } from "@/components/markets/MarketTickerBar"
 import { AssetColumns } from "@/components/markets/AssetColumns"
 import { ProductGrid } from "@/components/markets/ProductGrid"
@@ -11,7 +11,7 @@ export default function MarketsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <MarketNavbar />
+      <PortfolioNavbar />
       <main className="pt-24 pb-16">
         <MarketTickerBar />
         <div className="px-4 sm:px-6 lg:px-8 mt-8">
