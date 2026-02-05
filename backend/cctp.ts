@@ -30,4 +30,4 @@ const bridgeUSDC = async (): Promise<void> => {
   }
 };
 
-void bridgeUSDC();
+bridgeUSDC();
