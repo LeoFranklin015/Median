@@ -8,6 +8,9 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { YellowNetworkProvider } from "@/lib/yellowNetwork";
+import { JustaNameProvider } from '@justaname.id/react';
+import { ChainId } from "@justaname.id/sdk";
+
 
 const config = getDefaultConfig({
   appName: "Median",
@@ -16,6 +19,22 @@ const config = getDefaultConfig({
   ssr: true,
 });
 
+const justaNameConfig = {
+  config: {
+   origin: "http://localhost:3000/",
+   domain: "localhost",
+   signInTtl: 86400000,
+ },
+ensDomains: [
+  { 
+    chainId: 11155111 as ChainId, 
+    ensDomain: 'median.eth',
+    apiKey: process.env.NEXT_PUBLIC_JUSTA_NAME_API_KEY as string 
+  }
+],
+networks: [{ chainId: 11155111 as ChainId, providerUrl: `https://eth-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`}],
+};
+
 export default function Provider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   return (
@@ -23,7 +42,11 @@ export default function Provider({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem storageKey="median-theme">
           <RainbowKitProvider>
-            <YellowNetworkProvider>{children}</YellowNetworkProvider>
+            <YellowNetworkProvider>
+              <JustaNameProvider config={justaNameConfig}>
+                {children}
+              </JustaNameProvider>
+            </YellowNetworkProvider>
           </RainbowKitProvider>
         </ThemeProvider>
       </QueryClientProvider>
