@@ -1,31 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useAccount, useBalance, useReadContract } from "wagmi"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import { formatUnits } from "viem"
+import Link from "next/link"
 import { motion } from "framer-motion"
 import {
-  Info,
-  Calendar,
-  Filter,
-  DollarSign,
   Wallet,
   Settings,
   Shield,
   Layers,
   Plus,
   ArrowDownToLine,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react"
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { cn } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork"
+import { useStockQuotes } from "@/hooks/useStockQuotes"
+import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
 import { AmountModal } from "./AmountModal"
+
+const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
 
 // Sepolia addresses
 const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
 const CUSTODY_CONTRACT_ADDRESS = "0xc4afa9235be46a337850B33B12C222F6a3ba1EEC" as const
 
-// ABI for custody contract getAccountsBalances function
 const custodyContractABI = [
   {
     inputs: [
@@ -40,82 +43,107 @@ const custodyContractABI = [
 ] as const
 
 const TIME_FRAMES = ["1D", "7D", "30D", "90D"] as const
-const TABS = ["Active Positions", "Realized PnL", "Transaction History"] as const
-const TABLE_HEADERS = ["Token", "Price", "Balance", "Unrealized PnL", "Proportion"]
 
-const WIN_RATE_LEGEND = [
-  { label: ">500%", color: "bg-emerald-500" },
-  { label: "200% - 500%", color: "bg-emerald-400" },
-  { label: "50% - 200%", color: "bg-emerald-300" },
-  { label: "0% - 50%", color: "bg-red-400" },
-  { label: "-50% - 0%", color: "bg-red-500" },
-  { label: "<-50%", color: "bg-red-600" },
-]
+const PIE_COLORS = {
+  liquid: "#22c55e",
+  nonLiquid: "#FFD700",
+}
 
 export function PortfolioView() {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Active Positions")
   const [selectedFrame, setSelectedFrame] = useState<(typeof TIME_FRAMES)[number]>("7D")
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [isWithdrawCustodyModalOpen, setIsWithdrawCustodyModalOpen] = useState(false)
   const [isAddFundsModalOpen, setIsAddFundsModalOpen] = useState(false)
   const [isWithdrawTradingModalOpen, setIsWithdrawTradingModalOpen] = useState(false)
+
   const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const { unifiedBalances, depositToCustody, withdrawFromCustody, addToTradingBalance, withdrawFromTradingBalance, isAuthenticated } = useYellowNetwork()
+  const {
+    unifiedBalances,
+    depositToCustody,
+    withdrawFromCustody,
+    addToTradingBalance,
+    withdrawFromTradingBalance,
+    isAuthenticated,
+  } = useYellowNetwork()
+  const { assets: quotedAssets } = useStockQuotes()
 
-  // Fetch onchain USDC balance from wallet
   const { data: usdcBalance } = useBalance({
-    address: address,
+    address,
     token: USDC_ADDRESS,
-    chainId: 11155111, // Sepolia chain ID
+    chainId: 11155111,
   })
 
-  // Fetch custody balance from contract
   const { data: custodyBalanceData } = useReadContract({
     address: CUSTODY_CONTRACT_ADDRESS,
     abi: custodyContractABI,
     functionName: "getAccountsBalances",
     args: address ? [[address], [USDC_ADDRESS]] : undefined,
-    chainId: 11155111, // Sepolia chain ID
-    query: {
-      enabled: !!address,
-    },
+    chainId: 11155111,
+    query: { enabled: !!address },
   })
 
-  // Format wallet balance (USDC has 6 decimals)
-  const walletBalanceFormatted = usdcBalance
-    ? parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals)).toFixed(2)
-    : "0.00"
+  const walletBalance = usdcBalance
+    ? parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals))
+    : 0
 
-  // Format custody balance (USDC has 6 decimals)
-  const custodyBalanceFormatted = custodyBalanceData && custodyBalanceData[0]?.[0]
-    ? parseFloat(formatUnits(custodyBalanceData[0][0], 6)).toFixed(2)
-    : "0.00"
+  const custodyBalance =
+    custodyBalanceData && custodyBalanceData[0]?.[0]
+      ? parseFloat(formatUnits(custodyBalanceData[0][0], 6))
+      : 0
 
-  // Get unified balance from Yellow Network (USDC)
-  const usdcUnifiedBalance = unifiedBalances.find(b => b.asset.toLowerCase() === 'usdc')
-  const unifiedBalanceFormatted = usdcUnifiedBalance
-    ? parseFloat(usdcUnifiedBalance.amount).toFixed(2)
-    : "0.00"
+  const usdcUnified = unifiedBalances.find((b) => b.asset.toLowerCase() === "usdc")
+  const unifiedUsdcBalance = usdcUnified ? parseFloat(usdcUnified.amount) : 0
 
-  // Calculate total balance (wallet + custody + unified)
-  const totalBalance = (
-    parseFloat(walletBalanceFormatted) +
-    parseFloat(custodyBalanceFormatted) +
-    parseFloat(unifiedBalanceFormatted)
-  ).toFixed(2)
+  const liquidValue = walletBalance + custodyBalance + unifiedUsdcBalance
+
+  // Stock holdings from unifiedBalances (non-USDC assets)
+  const stockHoldings = useMemo(() => {
+    const stocks = unifiedBalances.filter((b) => b.asset.toLowerCase() !== "usdc")
+    return stocks
+      .map((b) => {
+        const ticker = b.asset.toUpperCase()
+        const asset = getAssetByTicker(ticker) || ASSETS.find((a) => a.ticker.toUpperCase() === ticker)
+        const quote = quotedAssets.find((q) => q.ticker.toUpperCase() === ticker)
+        const price = quote?.price ?? asset?.price ?? 0
+        const amount = parseFloat(b.amount)
+        const value = amount * price
+        return {
+          ticker,
+          name: asset?.name ?? ticker,
+          price,
+          amount,
+          value,
+          change24hPercent: quote?.change24hPercent ?? asset?.change24hPercent ?? 0,
+        }
+      })
+      .filter((h) => h.value > 0 || h.amount > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [unifiedBalances, quotedAssets])
+
+  const nonLiquidValue = useMemo(() => stockHoldings.reduce((s, h) => s + h.value, 0), [stockHoldings])
+  const totalPortfolioValue = liquidValue + nonLiquidValue
+
+  const pieData = useMemo(() => {
+    const data = [
+      { name: "Liquid (Stablecoins)", value: Math.max(0, liquidValue), color: PIE_COLORS.liquid },
+      { name: "Non-liquid (Stocks)", value: Math.max(0, nonLiquidValue), color: PIE_COLORS.nonLiquid },
+    ]
+    return data.filter((d) => d.value > 0)
+  }, [liquidValue, nonLiquidValue])
+
+  const hasPortfolio = totalPortfolioValue > 0
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Timeframe selector - below navbar, at top of page */}
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Timeframe + compact balance summary */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex justify-end mb-6"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6"
       >
         <div
-          className="flex items-center rounded-lg p-1 bg-muted/50 border border-border"
+          className="flex items-center rounded-lg p-1 bg-muted/50 border border-border w-fit"
           style={{ fontFamily: "var(--font-figtree), Figtree" }}
         >
           {TIME_FRAMES.map((frame) => (
@@ -133,433 +161,291 @@ export function PortfolioView() {
             </button>
           ))}
         </div>
-      </motion.div>
-
-      {/* Balance types - Wallet, Custody, Unified */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
-      >
-        {/* Wallet Balance */}
-        <div
-          className="group relative rounded-2xl border overflow-hidden transition-all duration-300 hover:border-[#FFD700]/40"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-            borderColor: "hsl(var(--border))",
-          }}
-        >
-          <div className="p-6">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-colors"
-              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
-            >
-              <Wallet className="w-5 h-5" />
-            </div>
-            <p
-              className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1"
-              style={{ fontFamily: "var(--font-figtree), Figtree" }}
-            >
-              Wallet Balance
-            </p>
-            <p className="text-2xl font-bold text-foreground">${walletBalanceFormatted}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Your on-chain USDC wallet
-            </p>
+        <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Wallet:</span>
+            <span className="font-semibold text-foreground">${walletBalance.toFixed(2)}</span>
           </div>
-        </div>
-
-        {/* Custody Wallet Balance */}
-        <div
-          className="group relative rounded-2xl border overflow-hidden transition-all duration-300 hover:border-[#FFD700]/40"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
-            borderColor: "hsl(var(--border))",
-          }}
-        >
-          <div className="p-6">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-colors"
-              style={{ background: "rgba(255,215,0,0.12)", color: "#FFD700" }}
-            >
-              <Shield className="w-5 h-5" />
-            </div>
-            <p
-              className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1"
-              style={{ fontFamily: "var(--font-figtree), Figtree" }}
-            >
-              Trading Wallet Balance
-            </p>
-            <p className="text-2xl font-bold text-foreground">${custodyBalanceFormatted}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Platform balance for trading
-            </p>
-            {isConnected && (
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => setIsDepositModalOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90"
-                  style={{
-                    background: "rgba(255,215,0,0.15)",
-                    color: "#FFD700",
-                    fontFamily: "var(--font-figtree), Figtree",
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                  Deposit
-                </button>
-                <button
-                  onClick={() => setIsWithdrawCustodyModalOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 border"
-                  style={{
-                    borderColor: "rgba(255,215,0,0.3)",
-                    color: "#FFD700",
-                    fontFamily: "var(--font-figtree), Figtree",
-                  }}
-                >
-                  <ArrowDownToLine className="w-4 h-4" />
-                  Withdraw
-                </button>
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Custody:</span>
+            <span className="font-semibold text-foreground">${custodyBalance.toFixed(2)}</span>
           </div>
-        </div>
-
-        {/* Unified Balance - highlighted as primary */}
-        <div
-          className="relative rounded-2xl overflow-hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(255,215,0,0.15) 0%, rgba(255,215,0,0.05) 100%)",
-            border: "1px solid rgba(255,215,0,0.35)",
-            boxShadow: "0 0 40px -10px rgba(255,215,0,0.15)",
-          }}
-        >
-          <div className="p-6">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
-              style={{
-                background: "rgba(255,215,0,0.25)",
-                color: "#FFD700",
-              }}
-            >
-              <Layers className="w-5 h-5" />
-            </div>
-            <p
-              className="text-xs font-medium uppercase tracking-wider mb-1"
-              style={{
-                fontFamily: "var(--font-figtree), Figtree",
-                color: "#FFD700",
-              }}
-            >
-              Trading Account Balance
-            </p>
-            <p className="text-2xl font-bold text-foreground">${unifiedBalanceFormatted}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Instant trading balance
-            </p>
-            {isConnected && isAuthenticated && (
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => setIsAddFundsModalOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-background transition-all hover:opacity-90"
-                  style={{
-                    background: "#FFD700",
-                    fontFamily: "var(--font-figtree), Figtree",
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Funds
-                </button>
-                <button
-                  onClick={() => setIsWithdrawTradingModalOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 border"
-                  style={{
-                    borderColor: "rgba(255,215,0,0.5)",
-                    color: "#FFD700",
-                    fontFamily: "var(--font-figtree), Figtree",
-                  }}
-                >
-                  <ArrowDownToLine className="w-4 h-4" />
-                  Withdraw
-                </button>
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Trading:</span>
+            <span className="font-semibold text-foreground">${unifiedUsdcBalance.toFixed(2)}</span>
           </div>
         </div>
       </motion.div>
 
-      {/* Summary panels */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Total Balance */}
+      {/* Main layout: 30% pie chart | 70% holdings table */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,30%)_1fr] gap-6 min-h-[500px]">
+        {/* 30% - Pie chart */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="rounded-2xl bg-card border border-border p-6"
+          className="rounded-2xl bg-card border border-border p-6 flex flex-col"
         >
           <h3
-            className="text-sm font-medium text-muted-foreground mb-2"
+            className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider"
             style={{ fontFamily: "var(--font-figtree), Figtree" }}
           >
-            Total Balance
+            Asset Allocation
           </h3>
-          <p className="text-2xl lg:text-3xl font-semibold text-foreground mb-4">
-            ${totalBalance}
-          </p>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Total Trades</span>
-              <span>-- --</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Total Traded Tokens</span>
-              <span>--</span>
-            </div>
+          <div className="flex-1 min-h-[240px]">
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                    stroke="transparent"
+                  >
+                    {pieData.map((entry, i) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, ""]}
+                    contentStyle={{
+                      background: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <div
+                  className="w-24 h-24 rounded-full flex items-center justify-center mb-4"
+                  style={{ background: "rgba(255,215,0,0.1)" }}
+                >
+                  <Wallet className="w-10 h-10 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">No assets yet</p>
+                <p className="text-xs text-muted-foreground max-w-[200px]">
+                  Connect wallet and add funds to see your allocation
+                </p>
+              </div>
+            )}
           </div>
+          {hasPortfolio && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total portfolio</span>
+                <span className="font-bold text-foreground">${totalPortfolioValue.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+          {isConnected && (
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setIsDepositModalOpen(true)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                style={{ background: "rgba(255,215,0,0.15)", color: "#FFD700" }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Deposit
+              </button>
+              {isAuthenticated && (
+                <button
+                  onClick={() => setIsAddFundsModalOpen(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-background"
+                  style={{ background: "#FFD700" }}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add to Trading
+                </button>
+              )}
+            </div>
+          )}
         </motion.div>
 
-        {/* 7D Realized PnL */}
+        {/* 70% - Holdings table */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
-          className="rounded-2xl bg-card border border-border p-6"
+          className="rounded-2xl bg-card border border-border overflow-hidden flex flex-col"
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <h3
-                className="text-sm font-medium text-muted-foreground"
-                style={{ fontFamily: "var(--font-figtree), Figtree" }}
-              >
-                7D Realized PnL
-              </h3>
-              <button
-                type="button"
-                className="p-0.5 text-muted-foreground hover:text-foreground rounded-full"
-                aria-label="Info"
-              >
-                <Info className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              PNL Calendar
-            </button>
-          </div>
-          <p className="text-2xl lg:text-3xl font-semibold text-foreground mb-4">
-            $0.00 (0.00%)
-          </p>
-          {/* Simple flat line graph placeholder */}
-          <div className="h-12 rounded-lg bg-muted/50 flex items-end justify-stretch gap-0.5 pb-1 px-1">
-            {Array.from({ length: 20 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex-1 min-w-[2px] bg-muted-foreground/30 rounded-sm"
-                style={{ height: "4px" }}
-              />
-            ))}
-          </div>
-        </motion.div>
-
-        {/* 7D Win Rate */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="rounded-2xl bg-card border border-border p-6"
-        >
-          <div className="flex items-center gap-2 mb-2">
+          <div className="p-4 border-b border-border flex items-center justify-between">
             <h3
-              className="text-sm font-medium text-muted-foreground"
+              className="text-sm font-medium text-foreground"
               style={{ fontFamily: "var(--font-figtree), Figtree" }}
             >
-              7D Win Rate
+              Stock Holdings
             </h3>
-            <button
-              type="button"
-              className="p-0.5 text-muted-foreground hover:text-foreground rounded-full"
-              aria-label="Info"
-            >
-              <Info className="w-3.5 h-3.5" />
-            </button>
           </div>
-          <p className="text-2xl lg:text-3xl font-semibold text-foreground mb-4">
-            0.00%
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {WIN_RATE_LEGEND.map((item) => (
+
+          {!isConnected ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-20 px-6">
               <div
-                key={item.label}
-                className="flex items-center gap-2 text-xs text-muted-foreground"
+                className="relative w-28 h-28 mb-6 flex items-center justify-center rounded-2xl"
+                style={{ background: "rgba(255,215,0,0.06)" }}
               >
-                <span
-                  className={cn("w-2.5 h-2.5 rounded-sm flex-shrink-0", item.color)}
-                />
-                <span>{item.label}</span>
+                <Wallet className="w-14 h-14 text-muted-foreground/60" />
+                <div
+                  className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(255,215,0,0.2)", color: "#FFD700" }}
+                >
+                  <Settings className="w-4 h-4" />
+                </div>
               </div>
-            ))}
-          </div>
+              <p className="text-center text-muted-foreground mb-6 max-w-sm">
+                Connect your wallet to view your portfolio
+              </p>
+              <button
+                type="button"
+                onClick={() => openConnectModal?.()}
+                className="px-6 py-2.5 rounded-xl font-semibold text-background"
+                style={{ background: "#FFD700", fontFamily: "var(--font-figtree), Figtree" }}
+              >
+                Connect wallet
+              </button>
+            </div>
+          ) : !hasPortfolio && stockHoldings.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-16 px-6">
+              <p className="text-center text-muted-foreground mb-6">
+                Add funds to your trading wallet to start trading
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsAddFundsModalOpen(true)}
+                className="px-6 py-2.5 rounded-xl font-semibold text-background"
+                style={{ background: "#FFD700", fontFamily: "var(--font-figtree), Figtree" }}
+              >
+                Add funds to trading wallet
+              </button>
+            </div>
+          ) : stockHoldings.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-16 px-6">
+              <p className="text-center text-muted-foreground">
+                No stock holdings. Trade on the Perpetuals page to open positions.
+              </p>
+              <Link
+                href="/perpetuals"
+                className="mt-4 px-6 py-2.5 rounded-xl font-semibold text-background"
+                style={{ background: "#FFD700", fontFamily: "var(--font-figtree), Figtree" }}
+              >
+                Trade Perpetuals
+              </Link>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ fontFamily: "var(--font-figtree), Figtree" }}>
+                <thead>
+                  <tr className="bg-muted/30 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <th className="text-left py-4 px-4">Asset</th>
+                    <th className="text-right py-4 px-4">Price</th>
+                    <th className="text-right py-4 px-4">Balance</th>
+                    <th className="text-right py-4 px-4">Value</th>
+                    <th className="text-right py-4 px-4">24h Change</th>
+                    <th className="text-right py-4 px-4">Proportion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockHoldings.map((holding) => (
+                    <tr
+                      key={holding.ticker}
+                      className="border-t border-border hover:bg-muted/20 transition-colors"
+                    >
+                      <td className="py-4 px-4">
+                        <Link
+                          href={`/markets/assets/${holding.ticker}`}
+                          className="flex items-center gap-3 hover:text-[#FFD700] transition-colors"
+                        >
+                          <img
+                            src={`https://img.logokit.com/ticker/${holding.ticker}?token=${LOGOKIT_TOKEN}`}
+                            alt={holding.ticker}
+                            className="w-8 h-8 rounded-full object-cover bg-muted"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none"
+                            }}
+                          />
+                          <div>
+                            <span className="font-medium text-foreground">{holding.ticker}</span>
+                            <span className="block text-xs text-muted-foreground">{holding.name}</span>
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="text-right py-4 px-4 font-medium text-foreground">
+                        ${holding.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="text-right py-4 px-4 text-foreground">
+                        {holding.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                      </td>
+                      <td className="text-right py-4 px-4 font-semibold text-foreground">
+                        ${holding.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="text-right py-4 px-4">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 font-medium",
+                            holding.change24hPercent >= 0 ? "text-emerald-500" : "text-red-500"
+                          )}
+                        >
+                          {holding.change24hPercent >= 0 ? (
+                            <TrendingUp className="w-3.5 h-3.5" />
+                          ) : (
+                            <TrendingDown className="w-3.5 h-3.5" />
+                          )}
+                          {holding.change24hPercent >= 0 ? "+" : ""}
+                          {holding.change24hPercent.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="text-right py-4 px-4 text-muted-foreground">
+                        {totalPortfolioValue > 0
+                          ? ((holding.value / totalPortfolioValue) * 100).toFixed(1)
+                          : "0"}
+                        %
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </motion.div>
       </div>
 
-      {/* Tabs + Filter + Table area */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.15 }}
-        className="rounded-2xl bg-card border border-border overflow-hidden"
-      >
-        {/* Tabs and actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-border">
-          <div className="flex gap-6 overflow-x-auto">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "text-sm font-medium pb-2 border-b-2 transition-colors whitespace-nowrap -mb-px",
-                  activeTab === tab
-                    ? "text-foreground border-[#FFD700]"
-                    : "text-muted-foreground border-transparent hover:text-foreground"
-                )}
-                style={{ fontFamily: "var(--font-figtree), Figtree" }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <Filter className="w-4 h-4" />
-              Filter
-            </button>
-            <button
-              type="button"
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-              style={{
-                background: "rgba(255,215,0,0.15)",
-                color: "#FFD700",
-              }}
-              aria-label="Dollar"
-            >
-              <DollarSign className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Table headers */}
-        <div className="hidden sm:grid grid-cols-[1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-muted/30 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b border-border">
-          {TABLE_HEADERS.map((h) => (
-            <span key={h} style={{ fontFamily: "var(--font-figtree), Figtree" }}>
-              {h}
-            </span>
-          ))}
-        </div>
-
-        {/* Empty state - different CTAs based on wallet connection */}
-        <div className="flex flex-col items-center justify-center py-20 px-6">
-          <div
-            className="relative w-32 h-32 mb-6 flex items-center justify-center rounded-2xl"
-            style={{ background: "rgba(255,215,0,0.06)" }}
-          >
-            <Wallet className="w-16 h-16 text-muted-foreground/60" />
-            <div
-              className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ background: "rgba(255,215,0,0.2)", color: "#FFD700" }}
-            >
-              <Settings className="w-5 h-5" />
-            </div>
-          </div>
-          <p
-            className="text-center text-muted-foreground mb-6 max-w-sm"
-            style={{ fontFamily: "var(--font-figtree), Figtree" }}
-          >
-            {isConnected
-              ? "Add funds to your trading wallet to start trading"
-              : "Connect your wallet to view your portfolio"}
-          </p>
-          {isConnected ? (
-            <button
-              type="button"
-              className="px-8 py-3 rounded-xl font-semibold text-background transition-opacity hover:opacity-90"
-              style={{
-                background: "#FFD700",
-                fontFamily: "var(--font-figtree), Figtree",
-              }}
-            >
-              Add funds to trading wallet
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => openConnectModal?.()}
-              className="px-8 py-3 rounded-xl font-semibold text-background transition-opacity hover:opacity-90"
-              style={{
-                background: "#FFD700",
-                fontFamily: "var(--font-figtree), Figtree",
-              }}
-            >
-              Connect wallet
-            </button>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Deposit to Custody Modal */}
       <AmountModal
         isOpen={isDepositModalOpen}
         onClose={() => setIsDepositModalOpen(false)}
-        onConfirm={async (amount) => {
-          await depositToCustody(amount)
-        }}
+        onConfirm={async (amount) => { await depositToCustody(amount) }}
         title="Deposit to Trading Wallet"
-        description="Deposit USDC from your wallet to the custody contract. This is an on-chain transaction."
+        description="Deposit USDC from your wallet to the custody contract."
         actionLabel="Deposit"
       />
-
-      {/* Add Funds to Trading Balance Modal */}
       <AmountModal
         isOpen={isAddFundsModalOpen}
         onClose={() => setIsAddFundsModalOpen(false)}
-        onConfirm={async (amount) => {
-          await addToTradingBalance(amount)
-        }}
+        onConfirm={addToTradingBalance}
         title="Add to Trading Account"
-        description="Transfer funds from custody to your instant trading balance. This creates a channel, transfers the amount, and closes the channel."
+        description="Transfer funds from custody to your instant trading balance."
         actionLabel="Add Funds"
       />
-
-      {/* Withdraw from Custody Modal */}
       <AmountModal
         isOpen={isWithdrawCustodyModalOpen}
         onClose={() => setIsWithdrawCustodyModalOpen(false)}
-        onConfirm={async (amount) => {
-          await withdrawFromCustody(amount)
-        }}
+        onConfirm={async (amount) => { await withdrawFromCustody(amount) }}
         title="Withdraw from Trading Wallet"
-        description="Withdraw USDC from the custody contract back to your wallet. This is an on-chain transaction."
+        description="Withdraw USDC from the custody contract back to your wallet."
         actionLabel="Withdraw"
       />
-
-      {/* Withdraw from Trading Balance Modal */}
       <AmountModal
         isOpen={isWithdrawTradingModalOpen}
         onClose={() => setIsWithdrawTradingModalOpen(false)}
-        onConfirm={async (amount) => {
-          await withdrawFromTradingBalance(amount)
-        }}
+        onConfirm={withdrawFromTradingBalance}
         title="Withdraw from Trading Account"
-        description="Transfer funds from your instant trading balance back to custody. This resizes the channel to move funds."
+        description="Transfer funds from your instant trading balance back to custody."
         actionLabel="Withdraw"
       />
     </div>
