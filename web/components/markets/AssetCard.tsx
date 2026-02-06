@@ -4,7 +4,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import { Sparkline } from "./Sparkline"
-import { cn } from "@/lib/utils"
+import { cn, getStockLogoUrl } from "@/lib/utils"
 
 import type { AssetData } from "@/lib/sparkline-data"
 
@@ -58,13 +58,24 @@ export function AssetCard({
         {/* Top: Icon, Ticker, Name, Live badge */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div
-              className={cn(
-                "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0",
-                asset.iconBg
-              )}
-            >
-              {asset.icon}
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted overflow-hidden">
+              <img
+                src={getStockLogoUrl(asset.ticker)}
+                alt={asset.ticker}
+                className="w-10 h-10 object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none"
+                  e.currentTarget.nextElementSibling?.classList.remove("hidden")
+                }}
+              />
+              <span
+                className={cn(
+                  "hidden w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold",
+                  asset.iconBg
+                )}
+              >
+                {asset.icon}
+              </span>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">

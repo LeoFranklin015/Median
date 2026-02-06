@@ -4,7 +4,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import type { AssetWithQuote } from "@/hooks/useStockQuotes"
-import { cn } from "@/lib/utils"
+import { cn, getStockLogoUrl } from "@/lib/utils"
 
 function ColumnItem({
   asset,
@@ -22,13 +22,24 @@ function ColumnItem({
       transition={{ duration: 0.2 }}
       className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/60 border border-transparent hover:border-border/60 transition-all duration-200 cursor-pointer group"
     >
-      <div
-        className={cn(
-          "w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
-          asset.iconBg
-        )}
-      >
-        {asset.icon}
+      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted overflow-hidden">
+        <img
+          src={getStockLogoUrl(asset.ticker)}
+          alt={asset.ticker}
+          className="w-9 h-9 object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none"
+            e.currentTarget.nextElementSibling?.classList.remove("hidden")
+          }}
+        />
+        <span
+          className={cn(
+            "hidden w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold",
+            asset.iconBg
+          )}
+        >
+          {asset.icon}
+        </span>
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground truncate">
