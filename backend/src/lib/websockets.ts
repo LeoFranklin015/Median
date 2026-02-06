@@ -36,15 +36,18 @@ import {
     RPCAppSession,
     RPCChannelStatus
 } from '@erc7824/nitrolite';
-import { generateSessionKey, SessionKey, storeSessionKey } from './sessionStore';
+import { generateSessionKey, SessionKey } from './sessionStore';
 import getContractAddresses, {
     CHAIN_ID,
     USDC_TOKEN,
     AUTH_SCOPE,
     SESSION_DURATION,
     AUTH_ALLOWANCES,
-    ALCHEMY_RPC_URL
+    ALCHEMY_RPC_URL,
+    getChainById
 } from './config';
+import { bridgeUSDC } from './cctp';
+import { chainClientManager } from './chainClients';
 
 export type WsStatus = 'Connecting' | 'Connected' | 'Authenticated' | 'Disconnected';
 
@@ -85,6 +88,9 @@ class WebSocketService {
     private getAppSessionsResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
     private transferResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
 
+    // Track channel IDs by chain ID for cross-chain operations
+    private channelIdsByChain: Map<number, string> = new Map();
+
     constructor() {
         // Initialize immediately when the module loads
         this.initialize();
@@ -105,8 +111,8 @@ class WebSocketService {
                 transport: http(ALCHEMY_RPC_URL),
             });
 
+            // Always generate a fresh session key - never store
             this.sessionKey = generateSessionKey();
-            storeSessionKey(this.sessionKey);
             this.sessionSigner = createECDSAMessageSigner(this.sessionKey.privateKey);
 
             console.log('🔧 WebSocket service initialized');
@@ -424,6 +430,12 @@ class WebSocketService {
             const sessionData = JSON.parse(params.sessionData);
             console.log('📦 Processing session data:', sessionData);
 
+            // Check if this is a CROSS-CHAIN WITHDRAWAL
+            if (sessionData.action === 'crossChainWithdrawal' && sessionData.status !== 'completed' && sessionData.status !== 'failed') {
+                await this.handleCrossChainWithdrawal(params, sessionData);
+                return;
+            }
+
             // Check if this is a PERPETUAL position (has tradePair field, not market)
             const isPerpetual = sessionData.positionId && sessionData.tradePair;
 
@@ -516,7 +528,6 @@ class WebSocketService {
 
                 // We need the App Session ID. It's in params.appSessionId
                 const appSessionId = params.appSessionId;
-                const currentParticipants = params.participants; // We need this to reconstruct allocations if needed
 
                 // Reconstruct allocations (using 0 as requested/current state)
                 const allocations = params.participantAllocations?.map((p: any) => ({
@@ -725,6 +736,133 @@ class WebSocketService {
         }
 
         console.log(`✅ Position ${sessionData.positionId} closed. PnL: $${pnl.toFixed(2)}`);
+    }
+
+    /**
+     * Handle cross-chain withdrawal via CCTP
+     * Flow:
+     * 1. Receive funds from user (already done via transfer before this is called)
+     * 2. Move funds from unified balance to custody on source chain
+     * 3. Withdraw from custody to on-chain wallet
+     * 4. Bridge via CCTP to destination chain
+     * 5. Deposit to custody on destination chain
+     * 6. Move from custody to unified balance on destination chain
+     * 7. Transfer funds back to user on destination chain
+     */
+    private async handleCrossChainWithdrawal(params: any, sessionData: any) {
+        console.log('🌉 Processing cross-chain withdrawal...');
+        console.log('   Session data:', JSON.stringify(sessionData, null, 2));
+
+        const {
+            sourceChainId,
+            destChainId,
+            amount,
+            userWallet
+        } = sessionData;
+
+        const amountFloat = parseFloat(amount);
+        const amountAtomic = BigInt(Math.floor(amountFloat * 1_000_000));
+
+        // Get chain configurations
+        const sourceChain = getChainById(sourceChainId);
+        const destChain = getChainById(destChainId);
+
+        if (!sourceChain || !destChain) {
+            console.error('❌ Invalid chain configuration');
+            await this.updateCrossChainStatus(params, sessionData, 'failed', 'Invalid chain configuration');
+            return;
+        }
+
+        console.log(`🌉 Cross-chain withdrawal: ${amount} USDC`);
+        console.log(`   From: ${sourceChain.name} (${sourceChainId})`);
+        console.log(`   To: ${destChain.name} (${destChainId})`);
+        console.log(`   User: ${userWallet}`);
+
+        try {
+            // Check current balances to determine the best approach
+            const custodyBalance = await chainClientManager.getCustodyBalance(sourceChainId);
+            console.log(`📊 Current custody balance on ${sourceChain.name}: ${custodyBalance.toString()} (need: ${amountAtomic.toString()})`);
+
+            // Step 1: Ensure we have funds in custody
+            if (custodyBalance < amountAtomic) {
+                console.log(`📤 Step 1: Moving funds from unified to custody on ${sourceChain.name}...`);
+
+                // Get or create channel on source chain
+                const sourceChannelId = await this.getOrCreateChannelForChain(sourceChainId);
+                console.log(`   Using channel: ${sourceChannelId}`);
+
+                // Resize to move from unified balance to custody
+                // resize_amount = -X, allocate_amount = +X
+                const neededAmount = amountAtomic - custodyBalance;
+                await this.resizeChannelOnChain(sourceChannelId, -neededAmount, neededAmount, sourceChainId);
+                console.log(`   Resized channel: moved ${Number(neededAmount) / 1_000_000} USDC to custody`);
+            } else {
+                console.log(`📤 Step 1: Skipped - sufficient funds already in custody`);
+            }
+
+            // Step 2: Withdraw from custody to on-chain wallet
+            console.log(`📤 Step 2: Withdrawing from custody on ${sourceChain.name}...`);
+            await chainClientManager.withdrawFromCustody(sourceChainId, amountAtomic);
+
+            // Step 3: Bridge via CCTP directly to user's wallet
+            console.log(`🌉 Step 3: Bridging via CCTP to ${userWallet} on ${destChain.name}...`);
+            const bridgeResult = await bridgeUSDC({
+                sourceChainId,
+                destChainId,
+                amount: amountFloat.toString(),
+                recipientAddress: userWallet, // Send directly to user
+            });
+
+            if (!bridgeResult.success) {
+                throw new Error(`CCTP Bridge failed: ${bridgeResult.error}`);
+            }
+
+            console.log(`✅ CCTP Bridge complete: ${bridgeResult.txHash}`);
+            console.log(`   Funds sent directly to ${userWallet} on ${destChain.name}`);
+
+            // Step 4: Update app state with completion
+            console.log(`✅ Step 4: Updating app state to completed...`);
+            await this.updateCrossChainStatus(params, sessionData, 'completed', undefined, bridgeResult.txHash);
+
+            console.log(`✅ Cross-chain withdrawal complete!`);
+            console.log(`   Bridged ${amount} USDC from ${sourceChain.name} to ${destChain.name}`);
+
+        } catch (error) {
+            console.error('❌ Cross-chain withdrawal failed:', error);
+            await this.updateCrossChainStatus(params, sessionData, 'failed', String(error));
+        }
+    }
+
+    /**
+     * Helper to update cross-chain withdrawal status in app state
+     */
+    private async updateCrossChainStatus(
+        params: any,
+        sessionData: any,
+        status: 'completed' | 'failed',
+        error?: string,
+        bridgeTxHash?: string
+    ) {
+        const updatedData = {
+            ...sessionData,
+            status,
+            ...(error && { error }),
+            ...(bridgeTxHash && { bridgeTxHash }),
+            updatedAt: Date.now(),
+        };
+
+        const allocations = params.participantAllocations?.map((p: any) => ({
+            participant: p.participant,
+            asset: p.asset,
+            amount: p.amount
+        })) || [];
+
+        await this.submitAppState(
+            params.appSessionId,
+            allocations,
+            RPCAppStateIntent.Operate,
+            updatedData
+        );
     }
 
     private async handleTransfer(message: RPCResponse) {
@@ -949,6 +1087,110 @@ class WebSocketService {
     }
 
     /**
+     * Get or create a channel for a specific chain
+     * Used for cross-chain operations that need to interact with specific chains
+     * Creates the channel both via WebSocket AND on-chain
+     * @param chainId - The chain ID to get/create a channel for
+     * @returns The channel ID
+     */
+    public async getOrCreateChannelForChain(chainId: number): Promise<string> {
+        // Check if we already have a channel for this chain
+        const existingChannelId = this.channelIdsByChain.get(chainId);
+        if (existingChannelId) {
+            console.log(`📋 Using existing channel for chain ${chainId}: ${existingChannelId}`);
+            return existingChannelId;
+        }
+
+        // Get chain configuration
+        const chainConfig = getChainById(chainId);
+        if (!chainConfig) {
+            throw new Error(`Unsupported chain ID: ${chainId}`);
+        }
+
+        await this.waitForAuth();
+
+        if (!this.sessionSigner) {
+            throw new Error('Session signer not initialized');
+        }
+
+        // Helper to create channel via WebSocket
+        const createChannelViaWebSocket = async (): Promise<any> => {
+            console.log(`🧬 Creating channel for ${chainConfig.name} (${chainId})...`);
+
+            const createChannelMessage = await createCreateChannelMessage(this.sessionSigner!, {
+                chain_id: chainId,
+                token: chainConfig.usdcToken,
+            });
+
+            return new Promise<any>((resolve, reject) => {
+                const id = Date.now().toString();
+                this.channelResolvers.set(id, { resolve, reject });
+                this.send(createChannelMessage);
+
+                // Timeout after 30 seconds
+                setTimeout(() => {
+                    if (this.channelResolvers.has(id)) {
+                        this.channelResolvers.delete(id);
+                        reject(new Error(`Channel creation timeout for chain ${chainId}`));
+                    }
+                }, 30000);
+            });
+        };
+
+        let channelData: any;
+        let channelId: string;
+        let needsOnChainCreation = true;
+
+        try {
+            channelData = await createChannelViaWebSocket();
+            channelId = channelData.channel?.channelId || channelData.channelId;
+            if (!channelId) {
+                throw new Error(`No channel ID in response for chain ${chainId}`);
+            }
+        } catch (error) {
+            const errorStr = String(error);
+            // Check if channel already exists with broker
+            const existingChannelMatch = errorStr.match(/already exists: (0x[a-fA-F0-9]+)/);
+            if (existingChannelMatch) {
+                channelId = existingChannelMatch[1];
+                console.log(`📋 Using existing channel with broker: ${channelId}`);
+                // Channel already exists, no need to create on-chain
+                needsOnChainCreation = false;
+            } else {
+                throw error;
+            }
+        }
+
+        // Only create on-chain if this is a new channel
+        if (needsOnChainCreation && channelData) {
+            console.log(`📝 Submitting channel ${channelId} to ${chainConfig.name} on-chain...`);
+            const nitroliteClient = chainClientManager.getNitroliteClient(chainId);
+
+            const { txHash } = await nitroliteClient.createChannel({
+                channel: channelData.channel as unknown as Channel,
+                unsignedInitialState: {
+                    intent: channelData.state.intent as StateIntent,
+                    version: BigInt(channelData.state.version),
+                    data: channelData.state.stateData as `0x${string}`,
+                    allocations: channelData.state.allocations as Allocation[],
+                },
+                serverSignature: channelData.serverSignature as `0x${string}`,
+            });
+
+            console.log(`✅ Channel ${channelId} created on-chain on ${chainConfig.name} (tx: ${txHash})`);
+
+            // Wait 10 seconds for the channel to be indexed
+            console.log(`⏳ Waiting 10 seconds for channel to be indexed...`);
+            await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+
+        // Store the channel ID for future use
+        this.channelIdsByChain.set(chainId, channelId);
+
+        return channelId;
+    }
+
+    /**
      * Close a channel - sends close request via WebSocket and executes on-chain
      */
     public async closeChannelOnChain(channelId: string): Promise<{ txHash: string }> {
@@ -1013,11 +1255,13 @@ class WebSocketService {
      * @param channelId - The channel ID to resize
      * @param resizeAmount - Amount to add/remove from channel (positive=custody→channel, negative=channel→custody)
      * @param allocateAmount - Amount to allocate/deallocate (positive=channel→unified, negative=unified→channel)
+     * @param chainId - Optional chain ID to use chain-specific NitroliteClient
      */
     public async resizeChannelOnChain(
         channelId: string,
         resizeAmount?: bigint,
-        allocateAmount?: bigint
+        allocateAmount?: bigint,
+        chainId?: number
     ): Promise<{ txHash: string }> {
         await this.waitForAuth();
 
@@ -1036,33 +1280,51 @@ class WebSocketService {
             console.log(`   Allocate amount: ${allocateAmount.toString()}`);
         }
 
-        // Send resize channel message via WebSocket
-        const resizeMessage = await createResizeChannelMessage(this.sessionSigner, {
-            channel_id: channelId as `0x${string}`,
-            ...(resizeAmount !== undefined && { resize_amount: resizeAmount }),
-            ...(allocateAmount !== undefined && { allocate_amount: allocateAmount }),
-            funds_destination: fundsDestination,
-        });
+        // Helper function to attempt resize
+        const attemptResize = async (): Promise<any> => {
+            const resizeMessage = await createResizeChannelMessage(this.sessionSigner!, {
+                channel_id: channelId as `0x${string}`,
+                ...(resizeAmount !== undefined && { resize_amount: resizeAmount }),
+                ...(allocateAmount !== undefined && { allocate_amount: allocateAmount }),
+                funds_destination: fundsDestination,
+            });
 
-        // Wait for server approval
-        const resizeData = await new Promise<any>((resolve, reject) => {
-            const id = Date.now().toString();
-            this.resizeChannelResolvers.set(id, { resolve, reject });
-            this.send(resizeMessage);
+            return new Promise<any>((resolve, reject) => {
+                const id = Date.now().toString();
+                this.resizeChannelResolvers.set(id, { resolve, reject });
+                this.send(resizeMessage);
 
-            // Timeout after 30 seconds
-            setTimeout(() => {
-                if (this.resizeChannelResolvers.has(id)) {
-                    this.resizeChannelResolvers.delete(id);
-                    reject(new Error('Resize channel timeout'));
-                }
-            }, 30000);
-        });
+                // Timeout after 30 seconds
+                setTimeout(() => {
+                    if (this.resizeChannelResolvers.has(id)) {
+                        this.resizeChannelResolvers.delete(id);
+                        reject(new Error('Resize channel timeout'));
+                    }
+                }, 30000);
+            });
+        };
+
+        // Try resize with retry on "channel not found"
+        let resizeData: any;
+        try {
+            resizeData = await attemptResize();
+        } catch (error) {
+            const errorStr = String(error);
+            if (errorStr.includes('not found')) {
+                console.log(`⏳ Channel not found, waiting 1 second and retrying...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                resizeData = await attemptResize();
+            } else {
+                throw error;
+            }
+        }
 
         console.log('✅ Resize approved by server, executing on-chain...');
 
-        // Execute resize on-chain
-        const nitroliteClient = this.getNitroliteClient();
+        // Execute resize on-chain - use chain-specific client if chainId provided
+        const nitroliteClient = chainId
+            ? chainClientManager.getNitroliteClient(chainId)
+            : this.getNitroliteClient();
         if (!nitroliteClient) {
             throw new Error('NitroliteClient not initialized');
         }
