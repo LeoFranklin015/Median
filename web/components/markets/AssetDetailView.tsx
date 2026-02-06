@@ -220,29 +220,29 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
               {liveData.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-semibold text-zinc-900">
+              <h1 className="text-xl font-semibold text-foreground">
                 {liveData.name} {liveData.ticker}
               </h1>
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Market Closed{" "}
-                <Link href="#" className="underline hover:text-zinc-700">
+                <Link href="#" className="underline hover:text-foreground">
                   (View Status Page)
                 </Link>
               </p>
               <div className="flex items-baseline gap-4 mt-3">
                 {liveData.isLoading ? (
-                  <span className="text-3xl font-bold text-zinc-400 animate-pulse">
+                  <span className="text-3xl font-bold text-muted-foreground animate-pulse">
                     —
                   </span>
                 ) : (
                   <>
-                    <span className="text-3xl font-bold text-zinc-900">
+                    <span className="text-3xl font-bold text-foreground">
                       ${liveData.price.toFixed(2)}
                     </span>
                     <span
                       className={cn(
                         "flex items-center gap-1 text-sm font-medium",
-                        positive ? "text-emerald-600" : "text-red-600"
+                        positive ? "text-emerald-500" : "text-red-500"
                       )}
                     >
                       {positive ? "▲" : "▼"} ${Math.abs(liveData.change24h).toFixed(2)} (
@@ -265,8 +265,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 className={cn(
                   "px-4 py-2 rounded-lg text-sm font-medium transition-all",
                   chartRange === range.key
-                    ? "bg-zinc-800 text-white"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                    ? "bg-[#FFD700] text-background"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 {range.label}
@@ -275,7 +275,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
           </div>
 
           {/* Chart */}
-          <div className="rounded-xl bg-white border border-zinc-200/80 p-6">
+          <div className="rounded-xl bg-card border border-border p-6">
             <div className="h-[360px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -301,12 +301,12 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                   </defs>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="#e4e4e7"
+                    stroke="var(--border)"
                     vertical={false}
                   />
                   <XAxis
                     dataKey="time"
-                    tick={{ fontSize: 11, fill: "#71717a" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(_, i) =>
@@ -317,7 +317,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                   />
                   <YAxis
                     orientation="right"
-                    tick={{ fontSize: 11, fill: "#71717a" }}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => v.toFixed(2)}
@@ -327,8 +327,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                   <Tooltip
                     content={({ active, payload }) =>
                       active && payload?.[0] && (
-                        <div className="bg-white px-4 py-2 rounded-lg shadow-lg border border-zinc-200">
-                          <p className="text-sm font-semibold text-zinc-900">
+                        <div className="bg-card px-4 py-2 rounded-lg shadow-lg border border-border">
+                          <p className="text-sm font-semibold text-foreground">
                             ${Number(payload[0].value).toFixed(2)}
                           </p>
                         </div>
@@ -348,49 +348,49 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
           </div>
 
           {/* About section */}
-          <div className="rounded-xl bg-white border border-zinc-200/80 p-6">
-            <h2 className="text-lg font-bold text-zinc-900 mb-4">About</h2>
-            <p className="text-sm text-zinc-600 leading-relaxed mb-6">
+          <div className="rounded-xl bg-card border border-border p-6">
+            <h2 className="text-lg font-bold text-foreground mb-4">About</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-6">
               {showMore ? aboutText : aboutText.slice(0, 150) + "..."}{" "}
               <button
                 type="button"
                 onClick={() => setShowMore(!showMore)}
-                className="text-zinc-900 font-medium hover:underline"
+                className="text-foreground font-medium hover:underline"
               >
                 {showMore ? "Show Less" : "Show More"}
               </button>
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-zinc-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-border">
               {/* Left column */}
               <div className="space-y-4">
                 <div>
-                  <p className="text-xs text-zinc-500 mb-2">Supported Chains</p>
+                  <p className="text-xs text-muted-foreground mb-2">Supported Chains</p>
                   <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
                       <div className="w-4 h-4 rounded-sm bg-violet-500" />
                     </div>
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 via-blue-500 to-emerald-400 flex items-center justify-center" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500 mb-2">Onchain Address</p>
+                  <p className="text-xs text-muted-foreground mb-2">Onchain Address</p>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-zinc-900">
+                    <span className="text-sm font-mono text-foreground">
                       0xf3e4...f1a4
                     </span>
                     <button
                       type="button"
-                      className="p-1 hover:bg-zinc-100 rounded"
+                      className="p-1 hover:bg-muted rounded"
                       aria-label="Copy"
                     >
-                      <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                      <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
-                    <ChevronDown className="w-4 h-4 text-zinc-400" />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500 mb-2">Category</p>
+                  <p className="text-xs text-muted-foreground mb-2">Category</p>
                   <div className="flex gap-2 flex-wrap">
                     {categoryTags.map((cat, i) => (
                       <span
@@ -398,8 +398,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                         className={cn(
                           "px-3 py-1 rounded-full text-xs font-medium",
                           i === 0 && (cat === "ETF" || cat === "Commodities")
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-zinc-100 text-zinc-700"
+                            ? "bg-orange-500/20 text-orange-400"
+                            : "bg-muted text-muted-foreground"
                         )}
                       >
                         {cat}
@@ -412,19 +412,19 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
               {/* Right column */}
               <div className="space-y-4">
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Underlying Asset Name</p>
-                  <p className="text-sm font-medium text-zinc-900">{liveData.name}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Underlying Asset Name</p>
+                  <p className="text-sm font-medium text-foreground">{liveData.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1">Underlying Asset Ticker</p>
-                  <p className="text-sm font-medium text-zinc-900">{liveData.ticker}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Underlying Asset Ticker</p>
+                  <p className="text-sm font-medium text-foreground">{liveData.ticker}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                     Shares Per Token
                     <HelpCircle className="w-3.5 h-3.5" />
                   </p>
-                  <p className="text-sm font-medium text-zinc-900">
+                  <p className="text-sm font-medium text-foreground">
                     1 {liveData.ticker} = 1.0000 {liveData.ticker}
                   </p>
                 </div>
@@ -433,56 +433,56 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
           </div>
 
           {/* Statistics section */}
-          <div className="rounded-xl bg-white border border-zinc-200/80 p-6">
-            <h2 className="text-lg font-bold text-zinc-900 mb-6">Statistics</h2>
+          <div className="rounded-xl bg-card border border-border p-6">
+            <h2 className="text-lg font-bold text-foreground mb-6">Statistics</h2>
 
             {/* Price data - 24H */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 pb-6 border-b border-zinc-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 pb-6 border-b border-border">
               <div>
-                <p className="text-sm font-medium text-zinc-900 mb-4">
+                <p className="text-sm font-medium text-foreground mb-4">
                   Token Price² 24H⁴
                 </p>
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Open</span>
-                    <span className="text-zinc-900 font-medium">
+                    <span className="text-muted-foreground">Open</span>
+                    <span className="text-foreground font-medium">
                       ${stats.tokenPrice.open.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">High</span>
-                    <span className="text-zinc-900 font-medium">
+                    <span className="text-muted-foreground">High</span>
+                    <span className="text-foreground font-medium">
                       ${stats.tokenPrice.high.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Low</span>
-                    <span className="text-zinc-900 font-medium">
+                    <span className="text-muted-foreground">Low</span>
+                    <span className="text-foreground font-medium">
                       ${stats.tokenPrice.low.toFixed(2)}
                     </span>
                   </div>
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-zinc-900 mb-4">
+                <p className="text-sm font-medium text-foreground mb-4">
                   Underlying Asset Price² 24H⁴
                 </p>
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Open</span>
-                    <span className="text-zinc-900 font-medium">
+                    <span className="text-muted-foreground">Open</span>
+                    <span className="text-foreground font-medium">
                       ${stats.underlyingPrice.open.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">High</span>
-                    <span className="text-zinc-900 font-medium">
+                    <span className="text-muted-foreground">High</span>
+                    <span className="text-foreground font-medium">
                       ${stats.underlyingPrice.high.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Low</span>
-                    <span className="text-zinc-900 font-medium">
+                    <span className="text-muted-foreground">Low</span>
+                    <span className="text-foreground font-medium">
                       ${stats.underlyingPrice.low.toFixed(2)}
                     </span>
                   </div>
@@ -492,41 +492,41 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
 
             {/* Underlying Asset Statistics */}
             <div>
-              <p className="text-sm font-medium text-zinc-900 mb-4">
+              <p className="text-sm font-medium text-foreground mb-4">
                 Underlying Asset Statistics³
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex justify-between sm:flex-col sm:gap-1 py-3 border-b sm:border-b-0 sm:border-r border-zinc-200 pr-4">
-                  <span className="text-zinc-500 text-sm flex items-center gap-1">
+                <div className="flex justify-between sm:flex-col sm:gap-1 py-3 border-b sm:border-b-0 sm:border-r border-border pr-4">
+                  <span className="text-muted-foreground text-sm flex items-center gap-1">
                     Total Market Cap
                     <HelpCircle className="w-3.5 h-3.5" />
                   </span>
-                  <span className="text-zinc-900 font-medium">{stats.marketCap}</span>
+                  <span className="text-foreground font-medium">{stats.marketCap}</span>
                 </div>
-                <div className="flex justify-between sm:flex-col sm:gap-1 py-3 border-b sm:border-b-0 sm:border-r border-zinc-200 pr-4">
-                  <span className="text-zinc-500 text-sm flex items-center gap-1">
+                <div className="flex justify-between sm:flex-col sm:gap-1 py-3 border-b sm:border-b-0 sm:border-r border-border pr-4">
+                  <span className="text-muted-foreground text-sm flex items-center gap-1">
                     24h Volume
                     <HelpCircle className="w-3.5 h-3.5" />
                   </span>
-                  <span className="text-zinc-900 font-medium">{stats.volume24h}</span>
+                  <span className="text-foreground font-medium">{stats.volume24h}</span>
                 </div>
                 <div className="flex justify-between sm:flex-col sm:gap-1 py-3">
-                  <span className="text-zinc-500 text-sm flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm flex items-center gap-1">
                     Average Volume
                     <HelpCircle className="w-3.5 h-3.5" />
                   </span>
-                  <span className="text-zinc-900 font-medium">{stats.avgVolume}</span>
+                  <span className="text-foreground font-medium">{stats.avgVolume}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right: Buy/Sell panel - Ondo style */}
+        {/* Right: Buy/Sell panel */}
         <div className="xl:col-span-1">
-          <div className="sticky top-28 rounded-2xl bg-zinc-100 border border-zinc-200/80 overflow-hidden">
+          <div className="sticky top-28 rounded-2xl bg-card border border-border overflow-hidden">
             {/* Buy/Sell tabs + Network */}
-            <div className="flex items-center justify-between border-b border-zinc-200 bg-white/50">
+            <div className="flex items-center justify-between border-b border-border bg-muted/30">
               <div className="flex flex-1">
                 <button
                   type="button"
@@ -534,8 +534,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                   className={cn(
                     "flex-1 py-4 text-sm font-semibold transition-colors",
                     activeTab === "buy"
-                      ? "bg-zinc-200 text-zinc-900"
-                      : "text-zinc-500 hover:bg-zinc-100"
+                      ? "bg-[#FFD700] text-background"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   Buy
@@ -546,8 +546,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                   className={cn(
                     "flex-1 py-4 text-sm font-semibold transition-colors",
                     activeTab === "sell"
-                      ? "bg-zinc-200 text-zinc-900"
-                      : "text-zinc-500 hover:bg-zinc-100"
+                      ? "bg-[#FFD700] text-background"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   Sell
@@ -557,15 +557,15 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
                   ⟠
                 </div>
-                <span className="text-sm font-medium text-zinc-700">Ethereum</span>
+                <span className="text-sm font-medium text-foreground">Ethereum</span>
               </div>
             </div>
 
             <div className="p-6 space-y-4">
               {/* Pay */}
               <div>
-                <p className="text-xs text-zinc-500 mb-2">Pay</p>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-zinc-200">
+                <p className="text-xs text-muted-foreground mb-2">Pay</p>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border">
                   <input
                     type="text"
                     inputMode="decimal"
@@ -573,28 +573,29 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     onChange={(e) =>
                       handlePayChange(e.target.value.replace(/[^0-9.]/g, ""))
                     }
-                    className="flex-1 bg-transparent text-zinc-900 text-lg font-medium focus:outline-none min-w-0"
+                    className="flex-1 bg-transparent text-foreground text-lg font-medium focus:outline-none min-w-0 placeholder:text-muted-foreground"
+                    placeholder="0.00"
                   />
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
                       $
                     </div>
-                    <span className="text-sm font-medium text-zinc-700">USDC</span>
+                    <span className="text-sm font-medium text-foreground">USDC</span>
                   </div>
                 </div>
               </div>
 
               {/* Arrow */}
               <div className="flex justify-center">
-                <div className="w-10 h-10 rounded-full bg-zinc-200 flex items-center justify-center">
-                  <ArrowDown className="w-5 h-5 text-zinc-600" />
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <ArrowDown className="w-5 h-5 text-muted-foreground" />
                 </div>
               </div>
 
               {/* Receive */}
               <div>
-                <p className="text-xs text-zinc-500 mb-2">Receive</p>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-zinc-200">
+                <p className="text-xs text-muted-foreground mb-2">Receive</p>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border">
                   <input
                     type="text"
                     inputMode="decimal"
@@ -602,7 +603,8 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     onChange={(e) =>
                       handleReceiveChange(e.target.value.replace(/[^0-9.]/g, ""))
                     }
-                    className="flex-1 bg-transparent text-zinc-900 text-lg font-medium focus:outline-none min-w-0"
+                    className="flex-1 bg-transparent text-foreground text-lg font-medium focus:outline-none min-w-0 placeholder:text-muted-foreground"
+                    placeholder="0.00"
                   />
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <div
@@ -613,10 +615,10 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     >
                       {liveData.icon.slice(0, 1)}
                     </div>
-                    <span className="text-sm font-medium text-zinc-700">
+                    <span className="text-sm font-medium text-foreground">
                       {liveData.ticker}
                     </span>
-                    <ChevronDown className="w-4 h-4 text-zinc-400" />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
               </div>
@@ -624,18 +626,18 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
               {/* Rate */}
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">Rate</span>
-                  <span className="text-zinc-900">
+                  <span className="text-muted-foreground">Rate</span>
+                  <span className="text-foreground">
                     1 {liveData.ticker} = {Math.round(liveData.price)} USDC (
                     ${liveData.price.toFixed(2)})
                   </span>
                 </div>
                 <div className="flex justify-between text-sm items-center">
-                  <span className="text-zinc-500 flex items-center gap-1">
+                  <span className="text-muted-foreground flex items-center gap-1">
                     Shares Per Token
                     <HelpCircle className="w-3.5 h-3.5" />
                   </span>
-                  <span className="text-zinc-900">
+                  <span className="text-foreground">
                     1 {asset.ticker} = 1.0000 {asset.ticker}
                   </span>
                 </div>
@@ -646,7 +648,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 type="button"
                 onClick={handleAction}
                 disabled={isProcessing}
-                className="w-full py-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 bg-[#FFD700] text-background hover:opacity-90"
               >
                 {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
                 {!isWalletConnected
@@ -656,7 +658,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
               </button>
 
               {/* Disclaimer */}
-              <p className="text-xs text-zinc-500 leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Join the waitlist to get early access. Global Markets tokens
                 have not been registered under the United States Securities Act
                 of 1933, as amended, and may not be offered or sold in the
@@ -666,12 +668,12 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
               </p>
 
               {/* Also Available On */}
-              <div className="pt-4 border-t border-zinc-200">
-                <p className="text-xs text-zinc-500 mb-3">Also Available On</p>
+              <div className="pt-4 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-3">Also Available On</p>
                 <div className="flex items-center gap-2">
                   <ChainLogo color="bg-violet-500" />
                   <ChainLogo color="bg-amber-400 text-amber-900" />
-                  <span className="text-sm text-zinc-500">
+                  <span className="text-sm text-muted-foreground">
                     & 2 more{" "}
                     <ChevronDown className="w-4 h-4 inline -rotate-90" />
                   </span>
