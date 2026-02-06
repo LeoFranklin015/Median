@@ -24,13 +24,49 @@ import { cn } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork"
 import { useStockQuotes } from "@/hooks/useStockQuotes"
 import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
-import { CHAIN_OPTIONS, USDC_BY_CHAIN } from "@/lib/chains"
+import { CHAIN_OPTIONS, USDC_BY_CHAIN, CHAIN_LOGOS } from "@/lib/chains"
 import { DepositModal, type DepositPayload } from "./DepositModal"
 import { WithdrawModal, type WithdrawPayload } from "./WithdrawModal"
 import { TransactionHistory } from "./TransactionHistory"
 import { toast } from "sonner"
 
 const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
+
+function ChainLogo({
+  chainId,
+  chainName,
+}: {
+  chainId: string
+  chainName: string
+}) {
+  const [failed, setFailed] = React.useState(false)
+  const logoUrl = CHAIN_LOGOS[chainId]
+  const initial = chainName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+
+  if (failed || !logoUrl) {
+    return (
+      <div
+        className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold bg-muted text-muted-foreground"
+        title={chainName}
+      >
+        {initial}
+      </div>
+    )
+  }
+  return (
+    <img
+      src={logoUrl}
+      alt={chainName}
+      className="w-5 h-5 rounded-full flex-shrink-0 object-cover bg-muted"
+      onError={() => setFailed(true)}
+    />
+  )
+}
 
 // Sepolia addresses
 const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
@@ -223,9 +259,12 @@ export function PortfolioView() {
               {isConnected && (
                 <div className="space-y-2 pt-4 border-t border-border">
                   {walletBalancesByChain.map(({ chain, balance }) => (
-                    <div key={chain.id} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{chain.name}</span>
-                      <span className="font-medium text-foreground">
+                    <div key={chain.id} className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ChainLogo chainId={chain.id} chainName={chain.name} />
+                        <span className="text-muted-foreground truncate">{chain.name}</span>
+                      </div>
+                      <span className="font-medium text-foreground flex-shrink-0">
                         ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>

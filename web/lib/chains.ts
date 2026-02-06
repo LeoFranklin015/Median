@@ -90,6 +90,15 @@ export const CHAIN_OPTIONS = [
   { id: "arc-testnet", name: "Arc Testnet", chainId: arcTestnet.id },
 ] as const
 
+// Chain logo URLs (DefiLlama CDN for mainnet logos; Arc uses official favicon)
+export const CHAIN_LOGOS: Record<string, string> = {
+  "ethereum-sepolia": "https://icons.llama.fi/chains/rsz_ethereum.jpg",
+  "base-sepolia": "https://icons.llama.fi/chains/rsz_base.jpg",
+  "arbitrum-sepolia": "https://icons.llama.fi/chains/rsz_arbitrum.jpg",
+  "optimism-sepolia": "https://icons.llama.fi/chains/rsz_optimism.jpg",
+  "arc-testnet": "https://testnet.arcscan.app/favicon.ico",
+}
+
 // USDC token address per chain (testnet)
 export const USDC_BY_CHAIN: Record<number, `0x${string}`> = {
   [sepolia.id]: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as `0x${string}`,
