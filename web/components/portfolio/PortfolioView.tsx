@@ -13,6 +13,7 @@ import {
   Layers,
   Plus,
   ArrowDownToLine,
+  ArrowUpFromLine,
   TrendingUp,
   TrendingDown,
   BarChart3,
@@ -26,6 +27,7 @@ import { useStockQuotes } from "@/hooks/useStockQuotes"
 import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
 import { AmountModal } from "./AmountModal"
 import { DepositModal, type DepositPayload } from "./DepositModal"
+import { WithdrawModal, type WithdrawPayload } from "./WithdrawModal"
 import { toast } from "sonner"
 
 const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
@@ -57,6 +59,7 @@ const PIE_COLORS = {
 export function PortfolioView() {
   const [selectedFrame, setSelectedFrame] = useState<(typeof TIME_FRAMES)[number]>("7D")
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
   const [isWithdrawCustodyModalOpen, setIsWithdrawCustodyModalOpen] = useState(false)
   const [isAddFundsModalOpen, setIsAddFundsModalOpen] = useState(false)
   const [isWithdrawTradingModalOpen, setIsWithdrawTradingModalOpen] = useState(false)
@@ -253,18 +256,25 @@ export function PortfolioView() {
             </div>
           )}
           {isConnected && (
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => setIsDepositModalOpen(true)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                className="flex-1 min-w-[80px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
                 style={{ background: "rgba(255,215,0,0.15)", color: "#FFD700" }}
               >
                 <Plus className="w-3.5 h-3.5" /> Deposit
               </button>
+              <button
+                onClick={() => setIsWithdrawModalOpen(true)}
+                className="flex-1 min-w-[80px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium"
+                style={{ background: "rgba(255,215,0,0.15)", color: "#FFD700" }}
+              >
+                <ArrowUpFromLine className="w-3.5 h-3.5" /> Withdraw
+              </button>
               {isAuthenticated && (
                 <button
                   onClick={() => setIsAddFundsModalOpen(true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-background"
+                  className="flex-1 min-w-[80px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-background"
                   style={{ background: "#FFD700" }}
                 >
                   <Plus className="w-3.5 h-3.5" /> Add to Trading
@@ -544,6 +554,20 @@ export function PortfolioView() {
         title="Withdraw from Trading Account"
         description="Transfer funds from your instant trading balance back to custody."
         actionLabel="Withdraw"
+      />
+      <WithdrawModal
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        availableBalance={custodyBalance + unifiedUsdcBalance}
+        onConfirm={async (payload: WithdrawPayload) => {
+          const amt = parseFloat(payload.amount)
+          const needFromTrading = Math.max(0, amt - custodyBalance)
+          if (needFromTrading > 0 && needFromTrading <= unifiedUsdcBalance) {
+            await withdrawFromTradingBalance(needFromTrading.toFixed(2))
+          }
+          await withdrawFromCustody(payload.amount)
+          toast.success(`Withdrew $${payload.amount} USDC to ${payload.chain}`)
+        }}
       />
     </div>
   )
