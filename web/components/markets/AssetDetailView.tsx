@@ -14,7 +14,7 @@ import {
 import { ChevronDown, ArrowDown, HelpCircle, Copy, Loader2 } from "lucide-react"
 import type { AssetData } from "@/lib/sparkline-data"
 import { useAssetDetail } from "@/hooks/useAssetDetail"
-import { cn } from "@/lib/utils"
+import { cn, getStockLogoUrl } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork/YellowNetworkContext"
 import { YELLOW_CONFIG } from "@/lib/yellowNetwork/config"
 import { useAccount } from "wagmi"
@@ -211,13 +211,24 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
         <div className="xl:col-span-2 space-y-6">
           {/* Asset header */}
           <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                "w-12 h-12 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0",
-                liveData.iconBg
-              )}
-            >
-              {liveData.icon}
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted overflow-hidden">
+              <img
+                src={getStockLogoUrl(liveData.ticker)}
+                alt={liveData.ticker}
+                className="w-12 h-12 object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none"
+                  e.currentTarget.nextElementSibling?.classList.remove("hidden")
+                }}
+              />
+              <span
+                className={cn(
+                  "hidden w-12 h-12 rounded-lg flex items-center justify-center text-sm font-bold",
+                  liveData.iconBg
+                )}
+              >
+                {liveData.icon}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground">
@@ -607,13 +618,24 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     placeholder="0.00"
                   />
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <div
-                      className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
-                        liveData.iconBg
-                      )}
-                    >
-                      {liveData.icon.slice(0, 1)}
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center overflow-hidden bg-muted">
+                      <img
+                        src={getStockLogoUrl(liveData.ticker)}
+                        alt={liveData.ticker}
+                        className="w-6 h-6 object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none"
+                          e.currentTarget.nextElementSibling?.classList.remove("hidden")
+                        }}
+                      />
+                      <span
+                        className={cn(
+                          "hidden w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
+                          liveData.iconBg
+                        )}
+                      >
+                        {liveData.icon.slice(0, 1)}
+                      </span>
                     </div>
                     <span className="text-sm font-medium text-foreground">
                       {liveData.ticker}
