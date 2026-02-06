@@ -1,112 +1,107 @@
 synthetic_tokens:
-  # Sepolia (11155111)
   - name: "Apple Inc."
     symbol: "AAPL"
     tokens:
       - blockchain_id: 11155111
-        address: "0x5DD6f178D5364F69cd82b56b84cF1a07b8ca263C"
+        address: "0x9530f7d8F774cE3b3eDa95229E24687Fe072dD7B"
         decimals: 18
 
   - name: "NVIDIA Corporation"
     symbol: "NVDA"
     tokens:
       - blockchain_id: 11155111
-        address: "0x229B3d790A0e7a6E2106f7Bd12491A6aD0b71509"
+        address: "0xD19b51A44a13213B3afCCFf91245f2dAee5D570B"
         decimals: 18
 
   - name: "Ondas Holdings Inc."
     symbol: "ONDS"
     tokens:
       - blockchain_id: 11155111
-        address: "0xf1f68d0F24e1Cd66E111f4091fD15dFe48BFdF7b"
+        address: "0xa72d3F7b6F5543514eDFF60684991025f15a6518"
         decimals: 18
 
-  # Base Sepolia (84532)
   - name: "Amazon.com Inc."
     symbol: "AMZN"
     tokens:
       - blockchain_id: 84532
-        address: "0x5116dE1dC40DE01d63fD9b1e3551F1995e2A2923"
+        address: "0xaA7389Cc693354624D487737989F6806f815A5D2"
         decimals: 18
 
   - name: "Pfizer Inc."
     symbol: "PFE"
     tokens:
       - blockchain_id: 84532
-        address: "0x5371cb4Da45c328F4A4F06D124f04aBdEEcd9b9d"
+        address: "0xA46B069488926fc15430404Ea29c3032A1F3654C"
         decimals: 18
 
   - name: "Meta Platforms Inc."
     symbol: "META"
     tokens:
       - blockchain_id: 84532
-        address: "0x2c8d0aeeaBb12610c4Cf095BF6d44A941800c920"
+        address: "0xD7A2f948f846c23Fd34cf380F828638E7d818b5b"
         decimals: 18
 
-  # Arbitrum Sepolia (421614)
   - name: "Alphabet Inc."
     symbol: "GOOG"
     tokens:
       - blockchain_id: 421614
-        address: "0x236e5389281e0458B9E3287561e23909Db4791cE"
+        address: "0xEC018557a1Ab92DC04D2655E268E1FEcf321F8b5"
         decimals: 18
 
   - name: "Intel Corporation"
     symbol: "INTC"
     tokens:
       - blockchain_id: 421614
-        address: "0x52613839Fb2952791b13F249A335ecFdbAeA15da"
+        address: "0x89FFd589d7Ebd966B18b8643EAb3E3018EE494d7"
         decimals: 18
 
   - name: "Netflix Inc."
     symbol: "NFLX"
     tokens:
       - blockchain_id: 421614
-        address: "0x80Cad4152729683e554764061edcc917C95401Be"
+        address: "0x9e2B9B0B2303A58DFd4aEB049D77c81C8DeF2e04"
         decimals: 18
 
-  # Arc Testnet (5042002)
   - name: "Microsoft Corporation"
     symbol: "MSFT"
     tokens:
       - blockchain_id: 5042002
-        address: "0xF635040A64ee4514B52f06dE7E4fEFd69fb268A3"
+        address: "0xf1b6A03293463BF824aC4F559C2948E1C5b1852e"
         decimals: 18
 
   - name: "SoFi Technologies Inc."
     symbol: "SOFI"
     tokens:
       - blockchain_id: 5042002
-        address: "0x901872D83c858CDb17190762439BA1069A630c38"
+        address: "0x1Cf30db4Cbe5A76b6f9E2cfFeD3E25ab36041283"
         decimals: 18
 
   - name: "Advanced Micro Devices Inc."
     symbol: "AMD"
     tokens:
       - blockchain_id: 5042002
-        address: "0x2c82A179E88536d28537B27Aa7FfFeCF22Ab81f1"
+        address: "0x8fc8083235E4C0bf978feD1AfE4A317B94c2Ef77"
         decimals: 18
 
-  # Optimism Sepolia (11155420)
   - name: "Tesla Inc."
     symbol: "TSLA"
     tokens:
       - blockchain_id: 11155420
-        address: "0x73e7b8add61047800108BE062F0FB3bFD72540fa"
+        address: "0xd201A97A0C33441f4bea12d9890703f92f3c0A32"
         decimals: 18
 
   - name: "Opendoor Technologies Inc."
     symbol: "OPEN"
     tokens:
       - blockchain_id: 11155420
-        address: "0xBd41ec3A26ABF5603B38FBF858A9D521d4Dade0B"
+        address: "0x756bfd9186E108fa53D9a972836D009C2CB887cf"
         decimals: 18
 
   - name: "JPMorgan Chase & Co."
     symbol: "JPM"
     tokens:
       - blockchain_id: 11155420
-        address: "0x206f983835e6A028Df88cdB41344fFfB3769e8D9"
+        address: "0x51Cb9012AE16812586c7c9D6B6D13103124873D1"
         decimals: 18
 
 # Network Reference:
