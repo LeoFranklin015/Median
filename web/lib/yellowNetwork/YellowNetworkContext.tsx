@@ -8,8 +8,7 @@ import React, {
   useCallback,
   useEffect,
 } from 'react';
-import { useAccount, useWalletClient, usePublicClient, useSwitchChain } from 'wagmi';
-import { sepolia } from 'wagmi/chains';
+import { useAccount, useWalletClient, usePublicClient } from 'wagmi';
 import { toast } from 'sonner';
 import {
   NitroliteClient,
@@ -51,7 +50,7 @@ import type {
   UnifiedBalance,
   LedgerEntry,
 } from './types';
-import { YELLOW_CONFIG, AUTH_SCOPE, SESSION_DURATION, getAuthDomain } from './config';
+import { YELLOW_CONFIG, SUPPORTED_CHAINS, getChainById, AUTH_SCOPE, SESSION_DURATION, getAuthDomain } from './config';
 import { getOrCreateSessionKey, clearSessionKey, generateSessionKey, storeSessionKey } from './sessionKey';
 
 // Create context with undefined default
@@ -69,7 +68,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
   const { address, chain } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { switchChain } = useSwitchChain();
 
   // Refs for WebSocket and clients (persist across renders)
   const wsRef = useRef<WebSocket | null>(null);
@@ -129,6 +127,37 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
   useEffect(() => {
     sessionKeyRef.current = sessionKey;
   }, [sessionKey]);
+
+  // Reinitialize NitroliteClient when chain changes
+  useEffect(() => {
+    if (!walletClient || !publicClient || !chain) return;
+
+    const chainConfig = getChainById(chain.id);
+    if (!chainConfig) {
+      console.log('Chain not supported, skipping NitroliteClient reinitialization');
+      return;
+    }
+
+    console.log(`🔄 Chain changed to ${chainConfig.name}, reinitializing NitroliteClient...`);
+
+    try {
+      const client = new NitroliteClient({
+        publicClient: publicClient as any,
+        walletClient: walletClient as any,
+        stateSigner: new WalletStateSigner(walletClient as any),
+        addresses: {
+          custody: chainConfig.custody,
+          adjudicator: chainConfig.adjudicator,
+        },
+        chainId: chainConfig.id,
+        challengeDuration: BigInt(3600),
+      });
+      nitroliteClientRef.current = client;
+      console.log(`✅ NitroliteClient reinitialized for ${chainConfig.name}`);
+    } catch (error) {
+      console.error('Failed to reinitialize NitroliteClient:', error);
+    }
+  }, [chain?.id, walletClient, publicClient]);
 
   // Initialize session key on mount
   useEffect(() => {
@@ -701,36 +730,44 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       setConnectionStatus('connecting');
       addLog('Starting connection...');
 
-      // Switch to Base Sepolia if needed
-      if (chain?.id !== sepolia.id) {
-        setConnectionStatus('switching_chain');
-        addLog('Switching to Base Sepolia...');
-        try {
-          await switchChain({ chainId: sepolia.id });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        } catch (error) {
-          toast.error('Please switch to Base Sepolia network');
-          setConnectionStatus('error');
-          return;
-        }
+      // Check if connected chain is supported
+      const chainConfig = chain ? getChainById(chain.id) : null;
+      if (!chainConfig) {
+        const supportedChainNames = Object.values(SUPPORTED_CHAINS).map(c => c.name).join(', ');
+        toast.error(`Please switch to a supported network: ${supportedChainNames}`);
+        setConnectionStatus('error');
+        return;
       }
+      addLog(`Using chain: ${chainConfig.name}`);
 
-      // Initialize Nitrolite client
+      // Initialize Nitrolite client with chain-specific configuration
       setConnectionStatus('initializing');
       try {
+        // Get chain-specific config based on connected wallet's chain
+        const chainConfig = chain ? getChainById(chain.id) : null;
+        const custodyAddress = chainConfig?.custody || YELLOW_CONFIG.custody;
+        const adjudicatorAddress = chainConfig?.adjudicator || YELLOW_CONFIG.adjudicator;
+        const chainId = chainConfig?.id || YELLOW_CONFIG.chainId;
+
+        addLog('Initializing NitroliteClient', {
+          chainId,
+          custody: custodyAddress,
+          chainName: chainConfig?.name || 'Unknown'
+        });
+
         const client = new NitroliteClient({
           publicClient: publicClient as any,
           walletClient: walletClient as any,
           stateSigner: new WalletStateSigner(walletClient as any),
           addresses: {
-            custody: YELLOW_CONFIG.custody,
-            adjudicator: YELLOW_CONFIG.adjudicator,
+            custody: custodyAddress,
+            adjudicator: adjudicatorAddress,
           },
-          chainId: YELLOW_CONFIG.chainId,
+          chainId,
           challengeDuration: BigInt(3600),
         });
         nitroliteClientRef.current = client;
-        addLog('Nitrolite client initialized');
+        addLog('Nitrolite client initialized for ' + (chainConfig?.name || 'default chain'));
       } catch (error) {
         console.warn('Nitrolite client initialization failed (non-critical):', error);
         addLog('Nitrolite client init failed (non-critical)', { error: String(error) });
@@ -840,7 +877,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     isConnected,
     isAuthenticated,
     publicClient,
-    switchChain,
     handleMessage,
     addLog,
   ]);
@@ -1143,45 +1179,124 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     }
   }, [isAuthenticated, sendMessage, addLog]);
 
-  // Deposit USDC to custody contract (on-chain) using NitroliteClient
+  // ERC20 ABI for approval
+  const erc20Abi = [
+    {
+      name: 'approve',
+      type: 'function',
+      stateMutability: 'nonpayable',
+      inputs: [
+        { name: 'spender', type: 'address' },
+        { name: 'amount', type: 'uint256' },
+      ],
+      outputs: [{ name: '', type: 'bool' }],
+    },
+    {
+      name: 'allowance',
+      type: 'function',
+      stateMutability: 'view',
+      inputs: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+      ],
+      outputs: [{ name: '', type: 'uint256' }],
+    },
+  ] as const;
+
+  // Custody contract deposit ABI
+  const custodyDepositAbi = [
+    {
+      name: 'deposit',
+      type: 'function',
+      stateMutability: 'payable',
+      inputs: [
+        { name: 'account', type: 'address' },
+        { name: 'token', type: 'address' },
+        { name: 'amount', type: 'uint256' },
+      ],
+      outputs: [],
+    },
+  ] as const;
+
+  // Deposit USDC to custody contract (on-chain)
+  // Uses direct contract calls for L2 compatibility (Arbitrum, etc.)
   const depositToCustody = useCallback(async (amount: string): Promise<{ txHash: string }> => {
     if (!address || !walletClient || !publicClient) {
       throw new Error('Wallet not connected');
     }
 
-    if (!nitroliteClientRef.current) {
-      throw new Error('Nitrolite client not initialized. Please reconnect.');
-    }
+    // Get chain-specific addresses
+    const chainConfig = chain ? getChainById(chain.id) : null;
+    const usdcToken = chainConfig?.usdcToken || YELLOW_CONFIG.testToken;
+    const custodyAddress = chainConfig?.custody || YELLOW_CONFIG.custody;
 
     const amountInUnits = BigInt(Math.floor(parseFloat(amount) * 1_000_000)); // USDC has 6 decimals
-    addLog(`Depositing ${amount} USDC to custody...`);
+    addLog(`Depositing ${amount} USDC to custody on ${chainConfig?.name || 'default chain'}...`, {
+      chainId: chain?.id,
+      usdcToken,
+      custodyAddress
+    });
     toast.info(`Depositing ${amount} USDC to custody...`);
 
     try {
-      const client = nitroliteClientRef.current;
+      // Get current gas price with buffer for L2 chains
+      const feeData = await publicClient.estimateFeesPerGas();
+      const maxFeePerGas = feeData.maxFeePerGas ? (feeData.maxFeePerGas * BigInt(150)) / BigInt(100) : undefined; // 50% buffer
+      const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? (feeData.maxPriorityFeePerGas * BigInt(150)) / BigInt(100) : undefined;
 
-      // Step 1: Check current allowance (with fallback on RPC failure)
+      addLog('Gas estimation', {
+        maxFeePerGas: maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: maxPriorityFeePerGas?.toString()
+      });
+
+      // Step 1: Check current allowance using direct contract read
       let currentAllowance = BigInt(0);
       try {
-        currentAllowance = await client.getTokenAllowance(YELLOW_CONFIG.testToken);
+        currentAllowance = await publicClient.readContract({
+          address: usdcToken,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [address, custodyAddress],
+        }) as bigint;
         addLog('Current allowance', { allowance: currentAllowance.toString() });
       } catch (allowanceError) {
         console.warn('Failed to get allowance, will attempt approval:', allowanceError);
         addLog('Allowance check failed, proceeding with approval');
       }
 
-      // Step 2: Approve if needed
+      // Step 2: Approve if needed - use direct writeContract for L2 compatibility
       if (currentAllowance < amountInUnits) {
         addLog('Approving USDC spend...');
-        const approveHash = await client.approveTokens(YELLOW_CONFIG.testToken, amountInUnits);
+
+        const approveHash = await walletClient.writeContract({
+          address: usdcToken,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [custodyAddress, amountInUnits],
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+        });
+
+        // Wait for approval tx to be mined
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
         addLog('USDC approved', { txHash: approveHash });
       } else {
         addLog('Sufficient allowance already exists');
       }
 
-      // Step 3: Deposit to custody using NitroliteClient
+      // Step 3: Deposit to custody using direct contract call for L2 compatibility
       addLog('Depositing to custody contract...');
-      const depositHash = await client.deposit(YELLOW_CONFIG.testToken, amountInUnits);
+      const depositHash = await walletClient.writeContract({
+        address: custodyAddress,
+        abi: custodyDepositAbi,
+        functionName: 'deposit',
+        args: [address, usdcToken, amountInUnits],
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+      });
+
+      // Wait for deposit tx to be mined
+      await publicClient.waitForTransactionReceipt({ hash: depositHash });
       addLog('Deposit successful!', { txHash: depositHash });
       toast.success(`Deposited ${amount} USDC to custody!`);
 
@@ -1192,7 +1307,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       toast.error('Deposit failed');
       throw error;
     }
-  }, [address, walletClient, publicClient, addLog]);
+  }, [address, walletClient, publicClient, chain, addLog]);
 
   // Withdraw USDC from custody contract (on-chain) using NitroliteClient
   const withdrawFromCustody = useCallback(async (amount: string): Promise<{ txHash: string }> => {
@@ -1204,8 +1319,15 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       throw new Error('Nitrolite client not initialized. Please reconnect.');
     }
 
+    // Get chain-specific USDC token address
+    const chainConfig = chain ? getChainById(chain.id) : null;
+    const usdcToken = chainConfig?.usdcToken || YELLOW_CONFIG.testToken;
+
     const amountInUnits = BigInt(Math.floor(parseFloat(amount) * 1_000_000)); // USDC has 6 decimals
-    addLog(`Withdrawing ${amount} USDC from custody...`);
+    addLog(`Withdrawing ${amount} USDC from custody on ${chainConfig?.name || 'default chain'}...`, {
+      chainId: chain?.id,
+      usdcToken
+    });
     toast.info(`Withdrawing ${amount} USDC from custody...`);
 
     try {
@@ -1213,7 +1335,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
 
       // Withdraw from custody using NitroliteClient
       addLog('Withdrawing from custody contract...');
-      const withdrawHash = await client.withdrawal(YELLOW_CONFIG.testToken, amountInUnits);
+      const withdrawHash = await client.withdrawal(usdcToken, amountInUnits);
       addLog('Withdrawal successful!', { txHash: withdrawHash });
       toast.success(`Withdrew ${amount} USDC from custody!`);
 
@@ -1224,7 +1346,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       toast.error('Withdrawal failed');
       throw error;
     }
-  }, [address, walletClient, publicClient, addLog]);
+  }, [address, walletClient, publicClient, chain, addLog]);
 
   // Add funds to trading balance (resize channel flow)
   // Creates channel if needed, resizes with +amount for resize and -amount for allocate, then closes
@@ -1415,10 +1537,14 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     };
 
     try {
+      // Get chain-specific USDC token address
+      const chainConfig = chain ? getChainById(chain.id) : null;
+      const usdcToken = chainConfig?.usdcToken || YELLOW_CONFIG.testToken;
+
       // Step 0: Check custody balance before proceeding
       if (nitroliteClientRef.current) {
-        const custodyBalance = await nitroliteClientRef.current.getAccountBalance(YELLOW_CONFIG.testToken);
-        addLog('Current custody balance', { balance: custodyBalance.toString(), required: amountInUnits.toString() });
+        const custodyBalance = await nitroliteClientRef.current.getAccountBalance(usdcToken);
+        addLog('Current custody balance', { balance: custodyBalance.toString(), required: amountInUnits.toString(), chainName: chainConfig?.name });
 
         if (custodyBalance < amountInUnits) {
           throw new Error(`Insufficient custody balance. Have: ${custodyBalance.toString()}, Need: ${amountInUnits.toString()}. Please deposit first.`);
@@ -1502,7 +1628,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       toast.error('Failed to add funds to trading balance');
       throw error;
     }
-  }, [isAuthenticated, sessionKey, address, channel, sendMessage, addLog, refreshLedgerEntries, closeChannel]);
+  }, [isAuthenticated, sessionKey, address, chain, channel, sendMessage, addLog, refreshLedgerEntries, closeChannel]);
 
   // Withdraw from trading balance (resize channel flow)
   // Resizes with -amount (unified → channel) and resize_amount -amount (channel → custody)

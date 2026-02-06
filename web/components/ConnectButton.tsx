@@ -1,5 +1,11 @@
+"use client";
+
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useENSCheck } from '@/hooks/useENSCheck';
+
 export const RainbowConnectButton = () => {
+  const { ensName } = useENSCheck();
+
   return (
     <ConnectButton.Custom>
       {({
@@ -20,6 +26,10 @@ export const RainbowConnectButton = () => {
           chain &&
           (!authenticationStatus ||
             authenticationStatus === 'authenticated');
+
+        // Use ENS name if available, otherwise use the default display name
+        const displayName = ensName || account?.displayName;
+
         return (
           <div
             {...(!ready && {
@@ -76,7 +86,7 @@ export const RainbowConnectButton = () => {
                     {chain.name}
                   </button>
                   <button onClick={openAccountModal} type="button">
-                    {account.displayName}
+                    {displayName}
                     {account.displayBalance
                       ? ` (${account.displayBalance})`
                       : ''}
