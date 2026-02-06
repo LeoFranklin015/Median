@@ -540,14 +540,16 @@ class WebSocketService {
 
     // Helper to fetch price - tries Bybit for crypto, Finnhub for stocks
     private async fetchPrice(ticker: string): Promise<number> {
+        const upperTicker = ticker.toUpperCase();
+
         // Known crypto tickers - use Bybit
         const cryptoTickers = ['BTC', 'ETH', 'SOL', 'LINK', 'SUI', 'DOGE', 'XRP', 'AVAX', 'ATOM', 'ADA', 'DOT', 'LTC', 'ARB', 'OP', 'PEPE', 'WIF', 'BONK', 'SEI', 'APT', 'FIL', 'NEAR', 'INJ', 'TIA'];
-        const isCrypto = cryptoTickers.includes(ticker.toUpperCase());
+        const isCrypto = cryptoTickers.includes(upperTicker);
 
         if (isCrypto) {
             // Use Bybit API for crypto
             try {
-                const symbol = `${ticker.toUpperCase()}USDT`;
+                const symbol = `${upperTicker}USDT`;
                 const response = await fetch(
                     `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`
                 );
@@ -564,15 +566,26 @@ class WebSocketService {
 
         // Try Finnhub for stocks
         const apiKey = process.env.FINNHUB_API_KEY;
-        if (apiKey) {
+        if (!apiKey) {
+            console.error('❌ FINNHUB_API_KEY is not set in environment variables');
+        } else {
             try {
-                const response = await fetch(
-                    `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`
-                );
-                const data = await response.json() as { c: number };
-                if (data.c > 0) {
-                    console.log(`📈 Finnhub price for ${ticker}: $${data.c}`);
-                    return data.c;
+                const url = `https://finnhub.io/api/v1/quote?symbol=${upperTicker}&token=${apiKey}`;
+                console.log(`🔍 Fetching Finnhub quote for ${upperTicker}...`);
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    console.error(`❌ Finnhub API error: ${response.status} ${response.statusText}`);
+                } else {
+                    const data = await response.json() as { c: number; d: number; dp: number; h: number; l: number; o: number; pc: number };
+                    console.log(`📊 Finnhub response for ${upperTicker}:`, JSON.stringify(data));
+
+                    if (data.c > 0) {
+                        console.log(`📈 Finnhub price for ${upperTicker}: $${data.c}`);
+                        return data.c;
+                    } else {
+                        console.warn(`⚠️ Finnhub returned zero/null price for ${upperTicker}`);
+                    }
                 }
             } catch (err) {
                 console.error('Failed to fetch Finnhub price:', err);
@@ -580,7 +593,7 @@ class WebSocketService {
         }
 
         // Fallback mock price
-        console.warn(`⚠️ Could not fetch price for ${ticker}, using mock price`);
+        console.warn(`⚠️ Could not fetch price for ${ticker}, using mock price $100`);
         return 100;
     }
 
@@ -1013,10 +1026,7 @@ class WebSocketService {
         }
 
         const wallet = getWallet();
-
-        // Determine funds destination based on allocate direction
-        const isAllocating = allocateAmount !== undefined && allocateAmount > 0n;
-        const fundsDestination = wallet.address; // Usually wallet address for resize
+        const fundsDestination = wallet.address;
 
         console.log(`📐 Requesting channel resize for: ${channelId}`);
         if (resizeAmount !== undefined) {
@@ -1181,7 +1191,7 @@ class WebSocketService {
         });
 
         // Wait for server response
-        const stateData = await new Promise<any>((resolve, reject) => {
+        await new Promise<any>((resolve, reject) => {
             const id = Date.now().toString();
             this.submitAppStateResolvers.set(id, { resolve, reject });
             this.send(stateMessage);
@@ -1228,7 +1238,7 @@ class WebSocketService {
         });
 
         // Wait for server response
-        const closeData = await new Promise<any>((resolve, reject) => {
+        await new Promise<any>((resolve, reject) => {
             const id = Date.now().toString();
             this.closeAppSessionResolvers.set(id, { resolve, reject });
             this.send(closeMessage);
@@ -1326,7 +1336,7 @@ class WebSocketService {
         });
 
         // Wait for server response
-        const transferData = await new Promise<any>((resolve, reject) => {
+        await new Promise<any>((resolve, reject) => {
             const id = Date.now().toString();
             this.transferResolvers.set(id, { resolve, reject });
             this.send(transferMessage);
