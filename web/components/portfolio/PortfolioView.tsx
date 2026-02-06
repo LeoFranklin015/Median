@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork"
 import { useStockQuotes } from "@/hooks/useStockQuotes"
 import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
+import { CHAIN_OPTIONS, USDC_BY_CHAIN } from "@/lib/chains"
 import { DepositModal, type DepositPayload } from "./DepositModal"
 import { WithdrawModal, type WithdrawPayload } from "./WithdrawModal"
 import { TransactionHistory } from "./TransactionHistory"
@@ -81,11 +82,60 @@ export function PortfolioView() {
   const SOURCE_CHAIN_ID = 11155111 // Sepolia
   const { assets: quotedAssets } = useStockQuotes()
 
-  const { data: usdcBalance } = useBalance({
+  const { data: usdcBalanceSepolia } = useBalance({
     address,
-    token: USDC_ADDRESS,
+    token: USDC_BY_CHAIN[11155111],
     chainId: 11155111,
+    query: { enabled: !!address },
   })
+  const { data: usdcBalanceBase } = useBalance({
+    address,
+    token: USDC_BY_CHAIN[84532],
+    chainId: 84532,
+    query: { enabled: !!address },
+  })
+  const { data: usdcBalanceArbitrum } = useBalance({
+    address,
+    token: USDC_BY_CHAIN[421614],
+    chainId: 421614,
+    query: { enabled: !!address },
+  })
+  const { data: usdcBalanceOptimism } = useBalance({
+    address,
+    token: USDC_BY_CHAIN[11155420],
+    chainId: 11155420,
+    query: { enabled: !!address },
+  })
+  const { data: usdcBalanceArc } = useBalance({
+    address,
+    token: USDC_BY_CHAIN[5042002],
+    chainId: 5042002,
+    query: { enabled: !!address },
+  })
+
+  const walletBalancesByChain = useMemo(() => {
+    const data = [
+      usdcBalanceSepolia,
+      usdcBalanceBase,
+      usdcBalanceArbitrum,
+      usdcBalanceOptimism,
+      usdcBalanceArc,
+    ]
+    return CHAIN_OPTIONS.map((chain, i) => ({
+      chain,
+      balance: data[i]?.value
+        ? parseFloat(formatUnits(data[i].value, data[i].decimals))
+        : 0,
+    }))
+  }, [
+    usdcBalanceSepolia,
+    usdcBalanceBase,
+    usdcBalanceArbitrum,
+    usdcBalanceOptimism,
+    usdcBalanceArc,
+  ])
+
+  const walletBalance = walletBalancesByChain.reduce((s, c) => s + c.balance, 0)
 
   const { data: custodyBalanceData } = useReadContract({
     address: CUSTODY_CONTRACT_ADDRESS,
@@ -95,10 +145,6 @@ export function PortfolioView() {
     chainId: 11155111,
     query: { enabled: !!address },
   })
-
-  const walletBalance = usdcBalance
-    ? parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals))
-    : 0
 
   const custodyBalance =
     custodyBalanceData && custodyBalanceData[0]?.[0]
@@ -130,7 +176,7 @@ export function PortfolioView() {
           change24hPercent: quote?.change24hPercent ?? asset?.change24hPercent ?? 0,
         }
       })
-      .filter((h) => h.value > 0 || h.amount > 0)
+      .filter((h) => h.amount > 0)
       .sort((a, b) => b.value - a.value)
   }, [unifiedBalances, quotedAssets])
 
@@ -173,7 +219,19 @@ export function PortfolioView() {
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">USDC in your connected wallet — ready to deposit</p>
+              <p className="text-sm text-muted-foreground mb-4">USDC across 5 chains — ready to deposit</p>
+              {isConnected && (
+                <div className="space-y-2 pt-4 border-t border-border">
+                  {walletBalancesByChain.map(({ chain, balance }) => (
+                    <div key={chain.id} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{chain.name}</span>
+                      <span className="font-medium text-foreground">
+                        ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -351,12 +409,19 @@ export function PortfolioView() {
           className="rounded-2xl bg-card border border-border overflow-hidden flex flex-col"
         >
           <div className="p-4 border-b border-border flex items-center justify-between">
-            <h3
-              className="text-sm font-medium text-foreground"
-              style={{ fontFamily: "var(--font-figtree), Figtree" }}
-            >
-              Stock Holdings
-            </h3>
+            <div>
+              <h3
+                className="text-sm font-medium text-foreground"
+                style={{ fontFamily: "var(--font-figtree), Figtree" }}
+              >
+                Stock Holdings
+              </h3>
+              {isConnected && stockHoldings.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {stockHoldings.length} stock{stockHoldings.length !== 1 ? "s" : ""} held: {stockHoldings.map((h) => h.ticker).join(", ")}
+                </p>
+              )}
+            </div>
           </div>
 
           {!isConnected ? (
