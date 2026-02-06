@@ -3,16 +3,16 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
-import { sepolia, baseSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { YellowNetworkProvider } from "@/lib/yellowNetwork";
+import { SUPPORTED_CHAINS } from "@/lib/chains";
 
 const config = getDefaultConfig({
   appName: "Median",
   projectId: process.env.NEXT_PUBLIC_PROJECT_ID || "",
-  chains: [sepolia, baseSepolia],
+  chains: SUPPORTED_CHAINS as any,
   ssr: true,
 });
 

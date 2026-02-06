@@ -25,6 +25,8 @@ import { useYellowNetwork } from "@/lib/yellowNetwork"
 import { useStockQuotes } from "@/hooks/useStockQuotes"
 import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
 import { AmountModal } from "./AmountModal"
+import { DepositModal, type DepositPayload } from "./DepositModal"
+import { toast } from "sonner"
 
 const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
 
@@ -507,13 +509,17 @@ export function PortfolioView() {
         </div>
       </motion.div>
 
-      <AmountModal
+      <DepositModal
         isOpen={isDepositModalOpen}
         onClose={() => setIsDepositModalOpen(false)}
-        onConfirm={async (amount) => { await depositToCustody(amount) }}
-        title="Deposit to Trading Wallet"
-        description="Deposit USDC from your wallet to the custody contract."
-        actionLabel="Deposit"
+        onConfirm={async (payload: DepositPayload) => {
+          if (payload.type === "usdc") {
+            await depositToCustody(payload.amount)
+            toast.success(`Deposited $${payload.amount} USDC on ${payload.chain}`)
+          } else {
+            toast.info(`${payload.stock} deposit on ${payload.chain} — stock token deposits coming soon`)
+          }
+        }}
       />
       <AmountModal
         isOpen={isAddFundsModalOpen}
