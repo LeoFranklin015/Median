@@ -9,6 +9,7 @@ import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { YellowNetworkProvider } from "@/lib/yellowNetwork";
 import { SUPPORTED_CHAINS, ALCHEMY_API_KEY, sepolia, baseSepolia, arbitrumSepolia, optimismSepolia, arcTestnet } from "@/lib/chains";
+import { ENSCheck } from "@/components/ENSCheck";
 
 const config = getDefaultConfig({
   appName: "Median",
@@ -32,6 +33,7 @@ export default function Provider({ children }: { children: React.ReactNode }) {
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem storageKey="median-theme">
           <RainbowKitProvider>
             <YellowNetworkProvider>
+              <ENSCheck />
               {children}
             </YellowNetworkProvider>
           </RainbowKitProvider>
