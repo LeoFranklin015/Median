@@ -28,6 +28,7 @@ import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
 import { AmountModal } from "./AmountModal"
 import { DepositModal, type DepositPayload } from "./DepositModal"
 import { WithdrawModal, type WithdrawPayload } from "./WithdrawModal"
+import { TransactionHistory } from "./TransactionHistory"
 import { toast } from "sonner"
 
 const LOGOKIT_TOKEN = "pk_frfbe2dd55bc04b3d4d1bc"
@@ -68,6 +69,8 @@ export function PortfolioView() {
   const { openConnectModal } = useConnectModal()
   const {
     unifiedBalances,
+    ledgerEntries,
+    refreshLedgerEntries,
     depositToCustody,
     withdrawFromCustody,
     addToTradingBalance,
@@ -144,47 +147,99 @@ export function PortfolioView() {
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Timeframe + compact balance summary */}
+      {/* Balance cards - prominent display */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6"
+        className="mb-8"
+        style={{ fontFamily: "var(--font-figtree), Figtree" }}
       >
-        <div
-          className="flex items-center rounded-lg p-1 bg-muted/50 border border-border w-fit"
-          style={{ fontFamily: "var(--font-figtree), Figtree" }}
-        >
-          {TIME_FRAMES.map((frame) => (
-            <button
-              key={frame}
-              onClick={() => setSelectedFrame(frame)}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-md transition-all",
-                selectedFrame === frame
-                  ? "bg-background text-foreground shadow-sm border border-border"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {frame}
-            </button>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-2xl bg-card border border-border p-6 shadow-sm hover:shadow-md transition-shadow overflow-hidden relative group">
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity bg-blue-500" />
+            <div className="relative flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/15 text-blue-500">
+                    <Wallet className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Wallet
+                  </span>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                  ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">USDC in your connected wallet</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-card border border-border p-6 shadow-sm hover:shadow-md transition-shadow overflow-hidden relative group">
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity bg-emerald-500" />
+            <div className="relative flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 text-emerald-500">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Custody
+                  </span>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                  ${custodyBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Deposited in custody contract</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-card border-2 border-[#FFD700]/30 p-6 shadow-sm hover:shadow-md transition-all overflow-hidden relative group bg-gradient-to-br from-[#FFD700]/5 to-transparent">
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-20 group-hover:opacity-30 transition-opacity" style={{ background: "#FFD700" }} />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,215,0,0.2)", color: "#FFD700" }}>
+                  <Layers className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "#FFD700" }}>
+                  Trading
+                </span>
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                ${unifiedUsdcBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Instant trading balance for orders</p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Wallet:</span>
-            <span className="font-semibold text-foreground">${walletBalance.toFixed(2)}</span>
+
+        {/* Timeframe selector */}
+        <div className="mt-6 flex items-center justify-between gap-4 flex-wrap">
+          <div
+            className="flex items-center rounded-lg p-1 bg-muted/50 border border-border w-fit"
+            style={{ fontFamily: "var(--font-figtree), Figtree" }}
+          >
+            {TIME_FRAMES.map((frame) => (
+              <button
+                key={frame}
+                onClick={() => setSelectedFrame(frame)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                  selectedFrame === frame
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {frame}
+              </button>
+            ))}
           </div>
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Custody:</span>
-            <span className="font-semibold text-foreground">${custodyBalance.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Trading:</span>
-            <span className="font-semibold text-foreground">${unifiedUsdcBalance.toFixed(2)}</span>
-          </div>
+          {isConnected && (
+            <p className="text-sm text-muted-foreground">
+              Combined: <span className="font-semibold text-foreground">${liquidValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> USDC liquid
+            </p>
+          )}
         </div>
       </motion.div>
 
@@ -517,6 +572,20 @@ export function PortfolioView() {
             {stockHoldings.length === 1 ? "Unique position" : "Unique positions"}
           </p>
         </div>
+      </motion.div>
+
+      {/* Transaction History */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.15 }}
+        className="mt-6"
+      >
+        <TransactionHistory
+          ledgerEntries={ledgerEntries}
+          refreshLedgerEntries={refreshLedgerEntries}
+          isAuthenticated={!!isAuthenticated}
+        />
       </motion.div>
 
       <DepositModal
