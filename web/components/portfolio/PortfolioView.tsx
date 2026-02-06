@@ -24,7 +24,6 @@ import { cn } from "@/lib/utils"
 import { useYellowNetwork } from "@/lib/yellowNetwork"
 import { useStockQuotes } from "@/hooks/useStockQuotes"
 import { ASSETS, getAssetByTicker } from "@/lib/sparkline-data"
-import { AmountModal } from "./AmountModal"
 import { DepositModal, type DepositPayload } from "./DepositModal"
 import { WithdrawModal, type WithdrawPayload } from "./WithdrawModal"
 import { TransactionHistory } from "./TransactionHistory"
@@ -60,9 +59,6 @@ export function PortfolioView() {
   const [selectedFrame, setSelectedFrame] = useState<(typeof TIME_FRAMES)[number]>("7D")
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
-  const [isWithdrawCustodyModalOpen, setIsWithdrawCustodyModalOpen] = useState(false)
-  const [isAddFundsModalOpen, setIsAddFundsModalOpen] = useState(false)
-  const [isWithdrawTradingModalOpen, setIsWithdrawTradingModalOpen] = useState(false)
 
   const { isConnected, address } = useAccount()
   const { openConnectModal } = useConnectModal()
@@ -282,7 +278,7 @@ export function PortfolioView() {
                     dataKey="value"
                     stroke="transparent"
                   >
-                    {pieData.map((entry, i) => (
+                    {pieData.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
@@ -336,15 +332,6 @@ export function PortfolioView() {
               >
                 <ArrowUpFromLine className="w-3.5 h-3.5" /> Withdraw
               </button>
-              {isAuthenticated && (
-                <button
-                  onClick={() => setIsAddFundsModalOpen(true)}
-                  className="flex-1 min-w-[80px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-background"
-                  style={{ background: "#FFD700" }}
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add to Trading
-                </button>
-              )}
             </div>
           )}
         </motion.div>
@@ -394,15 +381,15 @@ export function PortfolioView() {
           ) : !hasPortfolio && stockHoldings.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center py-16 px-6">
               <p className="text-center text-muted-foreground mb-6">
-                Add funds to your trading wallet to start trading
+                Deposit funds to start trading
               </p>
               <button
                 type="button"
-                onClick={() => setIsAddFundsModalOpen(true)}
+                onClick={() => setIsDepositModalOpen(true)}
                 className="px-6 py-2.5 rounded-xl font-semibold text-background"
                 style={{ background: "#FFD700", fontFamily: "var(--font-figtree), Figtree" }}
               >
-                Add funds to trading wallet
+                Deposit funds
               </button>
             </div>
           ) : stockHoldings.length === 0 ? (
@@ -603,49 +590,44 @@ export function PortfolioView() {
         onClose={() => setIsDepositModalOpen(false)}
         onConfirm={async (payload: DepositPayload) => {
           if (payload.type === "usdc") {
-            await depositToCustody(payload.amount)
-            toast.success(`Deposited $${payload.amount} USDC on ${payload.chain}`)
+            try {
+              // Step 1: Deposit to custody (on-chain)
+              toast.info("Step 1/2: Depositing to custody...")
+              await depositToCustody(payload.amount)
+
+              // Step 2: Automatically add funds to trading balance
+              toast.info("Step 2/2: Adding funds to trading balance...")
+              await addToTradingBalance(payload.amount)
+
+              toast.success(`Successfully deposited $${payload.amount} USDC to trading balance!`)
+            } catch (error) {
+              console.error("Deposit flow failed:", error)
+              toast.error("Deposit failed. Please check your balances and try again.")
+            }
           } else {
             toast.info(`${payload.stock} deposit on ${payload.chain} — stock token deposits coming soon`)
           }
         }}
       />
-      <AmountModal
-        isOpen={isAddFundsModalOpen}
-        onClose={() => setIsAddFundsModalOpen(false)}
-        onConfirm={addToTradingBalance}
-        title="Add to Trading Account"
-        description="Transfer funds from custody to your instant trading balance."
-        actionLabel="Add Funds"
-      />
-      <AmountModal
-        isOpen={isWithdrawCustodyModalOpen}
-        onClose={() => setIsWithdrawCustodyModalOpen(false)}
-        onConfirm={async (amount) => { await withdrawFromCustody(amount) }}
-        title="Withdraw from Trading Wallet"
-        description="Withdraw USDC from the custody contract back to your wallet."
-        actionLabel="Withdraw"
-      />
-      <AmountModal
-        isOpen={isWithdrawTradingModalOpen}
-        onClose={() => setIsWithdrawTradingModalOpen(false)}
-        onConfirm={withdrawFromTradingBalance}
-        title="Withdraw from Trading Account"
-        description="Transfer funds from your instant trading balance back to custody."
-        actionLabel="Withdraw"
-      />
       <WithdrawModal
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
-        availableBalance={custodyBalance + unifiedUsdcBalance}
+        availableBalance={unifiedUsdcBalance}
         onConfirm={async (payload: WithdrawPayload) => {
-          const amt = parseFloat(payload.amount)
-          const needFromTrading = Math.max(0, amt - custodyBalance)
-          if (needFromTrading > 0 && needFromTrading <= unifiedUsdcBalance) {
-            await withdrawFromTradingBalance(needFromTrading.toFixed(2))
+          try {
+            // Step 1: Withdraw from trading balance to custody
+            toast.info("Step 1/2: Withdrawing from trading balance...")
+            await withdrawFromTradingBalance(payload.amount)
+
+            // Step 2: Withdraw from custody to wallet
+            toast.info("Step 2/2: Withdrawing from custody to wallet...")
+            await withdrawFromCustody(payload.amount)
+
+            toast.success(`Successfully withdrew $${payload.amount} USDC to your wallet!`)
+          } catch (error) {
+            console.error("Withdraw flow failed:", error)
+            toast.error("Withdrawal failed. Please check your balances and try again.")
           }
-          await withdrawFromCustody(payload.amount)
-          toast.success(`Withdrew $${payload.amount} USDC to ${payload.chain}`)
         }}
       />
     </div>

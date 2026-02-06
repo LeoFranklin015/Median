@@ -1160,9 +1160,15 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     try {
       const client = nitroliteClientRef.current;
 
-      // Step 1: Check current allowance
-      const currentAllowance = await client.getTokenAllowance(YELLOW_CONFIG.testToken);
-      addLog('Current allowance', { allowance: currentAllowance.toString() });
+      // Step 1: Check current allowance (with fallback on RPC failure)
+      let currentAllowance = BigInt(0);
+      try {
+        currentAllowance = await client.getTokenAllowance(YELLOW_CONFIG.testToken);
+        addLog('Current allowance', { allowance: currentAllowance.toString() });
+      } catch (allowanceError) {
+        console.warn('Failed to get allowance, will attempt approval:', allowanceError);
+        addLog('Allowance check failed, proceeding with approval');
+      }
 
       // Step 2: Approve if needed
       if (currentAllowance < amountInUnits) {

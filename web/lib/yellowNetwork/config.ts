@@ -1,6 +1,6 @@
 // Yellow Network Ethereum Sepolia configuration
 export const YELLOW_CONFIG = {
-  ws: 'ws://localhost:8000/ws',
+  ws: 'wss://yellow.philotheephilix.in/ws',
   faucet: 'https://clearnet-sandbox.yellow.com/faucet/requestTokens',
   custody: '0xc4afa9235be46a337850B33B12C222F6a3ba1EEC' as const,
   adjudicator: '0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3' as const,
