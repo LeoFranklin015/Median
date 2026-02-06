@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useMemo, useState } from "react"
-import { useAccount, useBalance, useReadContract } from "wagmi"
+import { useAccount, useBalance, useReadContract, useSwitchChain } from "wagmi"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import { formatUnits } from "viem"
 import Link from "next/link"
@@ -61,8 +61,9 @@ export function PortfolioView() {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
 
-  const { isConnected, address } = useAccount()
+  const { isConnected, address, chain } = useAccount()
   const { openConnectModal } = useConnectModal()
+  const { switchChainAsync } = useSwitchChain()
   const {
     unifiedBalances,
     ledgerEntries,
@@ -663,6 +664,15 @@ export function PortfolioView() {
         onConfirm={async (payload: DepositPayload) => {
           if (payload.type === "usdc") {
             try {
+              // Switch to selected chain if different from current chain
+              if (chain?.id !== payload.chainId) {
+                const chainName = CHAIN_OPTIONS.find(c => c.chainId === payload.chainId)?.name || payload.chain
+                toast.info(`Switching to ${chainName}...`)
+                await switchChainAsync({ chainId: payload.chainId })
+                // Wait a moment for chain switch to complete and NitroliteClient to reinitialize
+                await new Promise(resolve => setTimeout(resolve, 1500))
+              }
+
               // Step 1: Deposit to custody (on-chain)
               toast.info("Step 1/2: Depositing to custody...")
               await depositToCustody(payload.amount)
