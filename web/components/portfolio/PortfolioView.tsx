@@ -71,7 +71,14 @@ export function PortfolioView() {
     addToTradingBalance,
     withdrawFromTradingBalance,
     isAuthenticated,
+    createAppSession,
+    submitAppState,
+    transfer,
   } = useYellowNetwork()
+
+  // Backend wallet address for cross-chain withdrawals
+  const BACKEND_WALLET_ADDRESS = "0x4888Eb840a7Ca93F49C9be3dD95Fc0EdA25bF0c6" as `0x${string}`
+  const SOURCE_CHAIN_ID = 11155111 // Sepolia
   const { assets: quotedAssets } = useStockQuotes()
 
   const { data: usdcBalance } = useBalance({
@@ -615,15 +622,60 @@ export function PortfolioView() {
         availableBalance={unifiedUsdcBalance}
         onConfirm={async (payload: WithdrawPayload) => {
           try {
-            // Step 1: Withdraw from trading balance to custody
-            toast.info("Step 1/2: Withdrawing from trading balance...")
-            await withdrawFromTradingBalance(payload.amount)
+            const isCrossChain = payload.chainId !== SOURCE_CHAIN_ID
 
-            // Step 2: Withdraw from custody to wallet
-            toast.info("Step 2/2: Withdrawing from custody to wallet...")
-            await withdrawFromCustody(payload.amount)
+            if (isCrossChain) {
+              // Cross-chain withdrawal flow
+              toast.info("Initiating cross-chain withdrawal via CCTP...")
 
-            toast.success(`Successfully withdrew $${payload.amount} USDC to your wallet!`)
+              // Step 1: Create app session with backend for cross-chain withdrawal
+              toast.info("Step 1/4: Creating withdrawal session...")
+              const { appSessionId } = await createAppSession(
+                [address!, BACKEND_WALLET_ADDRESS],
+                [
+                  { participant: address!, asset: "usdc", amount: "0" },
+                  { participant: BACKEND_WALLET_ADDRESS, asset: "usdc", amount: "0" },
+                ],
+                "Median App" // Must match the session key application name
+              )
+
+              // Step 2: Submit app state with withdrawal details
+              toast.info("Step 2/4: Submitting withdrawal request...")
+              await submitAppState(
+                appSessionId,
+                [
+                  { participant: address!, asset: "usdc", amount: "0" },
+                  { participant: BACKEND_WALLET_ADDRESS, asset: "usdc", amount: "0" },
+                ],
+                "operate",
+                {
+                  action: "crossChainWithdrawal",
+                  sourceChainId: SOURCE_CHAIN_ID,
+                  destChainId: payload.chainId,
+                  amount: payload.amount,
+                  userWallet: address,
+                }
+              )
+
+              // Step 3: Transfer funds to backend
+              toast.info("Step 3/4: Transferring funds for bridging...")
+              await transfer(BACKEND_WALLET_ADDRESS, [
+                { asset: "usdc", amount: payload.amount }
+              ])
+
+              toast.success(
+                `Cross-chain withdrawal initiated! ${payload.amount} USDC will be bridged to ${payload.chain}. This may take 10-20 minutes.`
+              )
+            } else {
+              // Same-chain withdrawal flow
+              toast.info("Step 1/2: Withdrawing from trading balance...")
+              await withdrawFromTradingBalance(payload.amount)
+
+              toast.info("Step 2/2: Withdrawing from custody to wallet...")
+              await withdrawFromCustody(payload.amount)
+
+              toast.success(`Successfully withdrew $${payload.amount} USDC to your wallet!`)
+            }
           } catch (error) {
             console.error("Withdraw flow failed:", error)
             toast.error("Withdrawal failed. Please check your balances and try again.")
