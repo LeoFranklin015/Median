@@ -9,16 +9,15 @@ import { motion } from "framer-motion"
 import {
   Wallet,
   Settings,
-  Shield,
   Layers,
   Plus,
-  ArrowDownToLine,
   ArrowUpFromLine,
   TrendingUp,
   TrendingDown,
   BarChart3,
   Target,
   Zap,
+  Sparkles,
 } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { cn } from "@/lib/utils"
@@ -154,62 +153,73 @@ export function PortfolioView() {
         className="mb-8"
         style={{ fontFamily: "var(--font-figtree), Figtree" }}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-2xl bg-card border border-border p-6 shadow-sm hover:shadow-md transition-shadow overflow-hidden relative group">
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity bg-blue-500" />
-            <div className="relative flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/15 text-blue-500">
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="rounded-2xl bg-card border border-border p-8 shadow-sm hover:shadow-lg transition-all overflow-hidden relative group">
+            <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-15 group-hover:opacity-25 transition-opacity bg-blue-500" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-blue-500/20 text-blue-500 shadow-inner">
+                  <Wallet className="w-7 h-7" />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                     Wallet
                   </span>
+                  <p className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight mt-0.5">
+                    ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-                  ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">USDC in your connected wallet</p>
               </div>
+              <p className="text-sm text-muted-foreground">USDC in your connected wallet — ready to deposit</p>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-card border border-border p-6 shadow-sm hover:shadow-md transition-shadow overflow-hidden relative group">
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity bg-emerald-500" />
-            <div className="relative flex items-start justify-between">
+          <div className="rounded-2xl bg-card border-2 border-[#FFD700]/40 p-8 shadow-sm hover:shadow-lg transition-all overflow-hidden relative group bg-gradient-to-br from-[#FFD700]/8 to-transparent">
+            <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-25 group-hover:opacity-35 transition-opacity" style={{ background: "#FFD700" }} />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner" style={{ background: "rgba(255,215,0,0.25)", color: "#FFD700" }}>
+                  <Layers className="w-7 h-7" />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold uppercase tracking-wider" style={{ color: "#FFD700" }}>
+                    Trading
+                  </span>
+                  <p className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight mt-0.5">
+                    ${unifiedUsdcBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">Instant balance for orders — deposit to add funds</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-card border border-border p-8 shadow-sm hover:shadow-lg transition-all overflow-hidden relative group">
+            <div className="absolute bottom-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 group-hover:opacity-20 transition-opacity bg-violet-500" />
+            <div className="relative flex flex-col h-full justify-between">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 text-emerald-500">
-                    <Shield className="w-5 h-5" />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-violet-500/15 text-violet-500 shadow-inner">
+                    <Sparkles className="w-7 h-7" />
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Custody
+                  <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Portfolio
                   </span>
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-                  ${custodyBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <p className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
+                  ${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">Deposited in custody contract</p>
               </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-card border-2 border-[#FFD700]/30 p-6 shadow-sm hover:shadow-md transition-all overflow-hidden relative group bg-gradient-to-br from-[#FFD700]/5 to-transparent">
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl opacity-20 group-hover:opacity-30 transition-opacity" style={{ background: "#FFD700" }} />
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,215,0,0.2)", color: "#FFD700" }}>
-                  <Layers className="w-5 h-5" />
+              <div className="mt-4 pt-4 border-t border-border space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Liquid (USDC)</span>
+                  <span className="font-medium text-foreground">${liquidValue.toFixed(2)}</span>
                 </div>
-                <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "#FFD700" }}>
-                  Trading
-                </span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Stocks</span>
+                  <span className="font-medium text-foreground">${nonLiquidValue.toFixed(2)}</span>
+                </div>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-                ${unifiedUsdcBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Instant trading balance for orders</p>
             </div>
           </div>
         </div>
