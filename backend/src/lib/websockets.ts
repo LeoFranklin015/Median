@@ -46,7 +46,7 @@ import getContractAddresses, {
     ALCHEMY_RPC_URL,
     getChainById
 } from './config';
-import { bridgeUSDC } from './cctp';
+import { performCrossChainWithdrawal } from './cctp';
 import { chainClientManager } from './chainClients';
 
 export type WsStatus = 'Connecting' | 'Connected' | 'Authenticated' | 'Disconnected';
@@ -740,96 +740,30 @@ class WebSocketService {
 
     /**
      * Handle cross-chain withdrawal via CCTP
-     * Flow:
-     * 1. Receive funds from user (already done via transfer before this is called)
-     * 2. Move funds from unified balance to custody on source chain
-     * 3. Withdraw from custody to on-chain wallet
-     * 4. Bridge via CCTP to destination chain
-     * 5. Deposit to custody on destination chain
-     * 6. Move from custody to unified balance on destination chain
-     * 7. Transfer funds back to user on destination chain
+     * Delegates to performCrossChainWithdrawal in cctp.ts
      */
     private async handleCrossChainWithdrawal(params: any, sessionData: any) {
         console.log('🌉 Processing cross-chain withdrawal...');
         console.log('   Session data:', JSON.stringify(sessionData, null, 2));
 
-        const {
-            sourceChainId,
-            destChainId,
-            amount,
-            userWallet
-        } = sessionData;
+        const { sourceChainId, destChainId, amount, userWallet } = sessionData;
 
-        const amountFloat = parseFloat(amount);
-        const amountAtomic = BigInt(Math.floor(amountFloat * 1_000_000));
-
-        // Get chain configurations
-        const sourceChain = getChainById(sourceChainId);
-        const destChain = getChainById(destChainId);
-
-        if (!sourceChain || !destChain) {
-            console.error('❌ Invalid chain configuration');
-            await this.updateCrossChainStatus(params, sessionData, 'failed', 'Invalid chain configuration');
-            return;
-        }
-
-        console.log(`🌉 Cross-chain withdrawal: ${amount} USDC`);
-        console.log(`   From: ${sourceChain.name} (${sourceChainId})`);
-        console.log(`   To: ${destChain.name} (${destChainId})`);
-        console.log(`   User: ${userWallet}`);
-
-        try {
-            // Check current balances to determine the best approach
-            const custodyBalance = await chainClientManager.getCustodyBalance(sourceChainId);
-            console.log(`📊 Current custody balance on ${sourceChain.name}: ${custodyBalance.toString()} (need: ${amountAtomic.toString()})`);
-
-            // Step 1: Ensure we have funds in custody
-            if (custodyBalance < amountAtomic) {
-                console.log(`📤 Step 1: Moving funds from unified to custody on ${sourceChain.name}...`);
-
-                // Get or create channel on source chain
-                const sourceChannelId = await this.getOrCreateChannelForChain(sourceChainId);
-                console.log(`   Using channel: ${sourceChannelId}`);
-
-                // Resize to move from unified balance to custody
-                // resize_amount = -X, allocate_amount = +X
-                const neededAmount = amountAtomic - custodyBalance;
-                await this.resizeChannelOnChain(sourceChannelId, -neededAmount, neededAmount, sourceChainId);
-                console.log(`   Resized channel: moved ${Number(neededAmount) / 1_000_000} USDC to custody`);
-            } else {
-                console.log(`📤 Step 1: Skipped - sufficient funds already in custody`);
+        // Perform the cross-chain withdrawal
+        const result = await performCrossChainWithdrawal(
+            { sourceChainId, destChainId, amount, userWallet },
+            {
+                getOrCreateChannelForChain: this.getOrCreateChannelForChain.bind(this),
+                resizeChannelOnChain: this.resizeChannelOnChain.bind(this),
             }
+        );
 
-            // Step 2: Withdraw from custody to on-chain wallet
-            console.log(`📤 Step 2: Withdrawing from custody on ${sourceChain.name}...`);
-            await chainClientManager.withdrawFromCustody(sourceChainId, amountAtomic);
-
-            // Step 3: Bridge via CCTP directly to user's wallet
-            console.log(`🌉 Step 3: Bridging via CCTP to ${userWallet} on ${destChain.name}...`);
-            const bridgeResult = await bridgeUSDC({
-                sourceChainId,
-                destChainId,
-                amount: amountFloat.toString(),
-                recipientAddress: userWallet, // Send directly to user
-            });
-
-            if (!bridgeResult.success) {
-                throw new Error(`CCTP Bridge failed: ${bridgeResult.error}`);
-            }
-
-            console.log(`✅ CCTP Bridge complete: ${bridgeResult.txHash}`);
-            console.log(`   Funds sent directly to ${userWallet} on ${destChain.name}`);
-
-            // Step 4: Update app state with completion
-            console.log(`✅ Step 4: Updating app state to completed...`);
-            await this.updateCrossChainStatus(params, sessionData, 'completed', undefined, bridgeResult.txHash);
-
+        // Update app state with result
+        if (result.success) {
             console.log(`✅ Cross-chain withdrawal complete!`);
-            console.log(`   Bridged ${amount} USDC from ${sourceChain.name} to ${destChain.name}`);
-
-        } catch (error) {
-            console.error('❌ Cross-chain withdrawal failed:', error);
-            await this.updateCrossChainStatus(params, sessionData, 'failed', String(error));
+            await this.updateCrossChainStatus(params, sessionData, 'completed', undefined, result.txHash);
+        } else {
+            console.error('❌ Cross-chain withdrawal failed:', result.error);
+            await this.updateCrossChainStatus(params, sessionData, 'failed', result.error);
         }
     }
 
