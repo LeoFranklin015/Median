@@ -5,6 +5,7 @@ import { createPublicClient, createWalletClient, http, WalletClient } from 'viem
 import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
 import { generateSessionKey, SessionKey } from '../lib/sessionStore';
+import { ALCHEMY_RPC_URL } from '../lib/config';
 
 import { config } from 'dotenv'
 
@@ -16,7 +17,7 @@ const SESSION_DURATION = 7200; // 1 hour
 
 export const publicClient = createPublicClient({
     chain: sepolia,
-    transport: http(),
+    transport: http(ALCHEMY_RPC_URL),
 })
 
 
@@ -26,7 +27,7 @@ const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
 export const walletClient = createWalletClient({
     account,
     chain: sepolia,
-    transport: http(),
+    transport: http(ALCHEMY_RPC_URL),
 })
 export async function authenticate(client: Client): Promise<SessionKey> {
     const allowances = [

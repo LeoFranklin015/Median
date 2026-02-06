@@ -42,7 +42,8 @@ import getContractAddresses, {
     USDC_TOKEN,
     AUTH_SCOPE,
     SESSION_DURATION,
-    AUTH_ALLOWANCES
+    AUTH_ALLOWANCES,
+    ALCHEMY_RPC_URL
 } from './config';
 
 export type WsStatus = 'Connecting' | 'Connected' | 'Authenticated' | 'Disconnected';
@@ -96,12 +97,12 @@ class WebSocketService {
             this.walletClient = createWalletClient({
                 account: wallet,
                 chain: sepolia,
-                transport: http(),
+                transport: http(ALCHEMY_RPC_URL),
             });
 
             this.publicClient = createPublicClient({
                 chain: sepolia,
-                transport: http(),
+                transport: http(ALCHEMY_RPC_URL),
             });
 
             this.sessionKey = generateSessionKey();
