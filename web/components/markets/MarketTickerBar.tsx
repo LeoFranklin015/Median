@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import { useStockQuotes, type AssetWithQuote } from "@/hooks/useStockQuotes"
-import { cn } from "@/lib/utils"
+import { cn, getStockLogoUrl } from "@/lib/utils"
 
 function formatPrice(price: number): string {
   if (price >= 1000) {
@@ -17,13 +17,24 @@ function TickerItem({ asset }: { asset: AssetWithQuote }) {
 
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-card border border-border shadow-sm hover:shadow-md hover:border-border/80 transition-all duration-200 min-w-[200px] cursor-default">
-      <div
-        className={cn(
-          "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0",
-          asset.iconBg
-        )}
-      >
-        {asset.icon}
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted overflow-hidden">
+        <img
+          src={getStockLogoUrl(asset.ticker)}
+          alt={asset.ticker}
+          className="w-8 h-8 object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none"
+            e.currentTarget.nextElementSibling?.classList.remove("hidden")
+          }}
+        />
+        <span
+          className={cn(
+            "hidden w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
+            asset.iconBg
+          )}
+        >
+          {asset.icon}
+        </span>
       </div>
       <div className="flex flex-col">
         <span className="text-sm font-semibold text-foreground whitespace-nowrap">
