@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
 import { Menu, X } from "lucide-react"
-import { ThemeToggle } from "./ThemeToggle"
 import { RainbowConnectButton } from "./ConnectButton"
 
 const NAV_LINKS = [
@@ -101,19 +100,9 @@ export const PortfolioNavbar = () => {
             </div>
           </div>
 
-          {/* Right controls: theme + wallet */}
+          {/* Right controls: wallet */}
           <div className="hidden md:flex items-center gap-3">
-            <div 
-              className="rounded-full px-3 py-2 backdrop-blur-2xl"
-              style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
-              }}
-            >
-              <ThemeToggle />
-            </div>
-            <div 
+            <div
               className="rounded-full px-3 py-1.5 backdrop-blur-2xl"
               style={{
                 background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
@@ -121,7 +110,7 @@ export const PortfolioNavbar = () => {
                 boxShadow: "0 4px 16px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.1)",
               }}
             >
-              <div 
+              <div
                 className="[&_button]:!px-5 [&_button]:!py-2 [&_button]:!rounded-full [&_button]:!text-[15px] [&_button]:!font-semibold [&_button]:!bg-transparent [&_button]:!border-none [&_button]:!text-zinc-300 [&_button]:hover:!text-white [&_button]:!transition-colors"
                 style={{ fontFamily: "Figtree, sans-serif" }}
               >
@@ -132,9 +121,6 @@ export const PortfolioNavbar = () => {
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center gap-2">
-            <div className="rounded-full bg-white/5 border border-white/10 px-1.5 py-1 backdrop-blur-xl mr-1">
-              <ThemeToggle />
-            </div>
             <button
               onClick={toggleMobileMenu}
               className="text-foreground hover:text-primary p-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-xl transition-colors duration-200"

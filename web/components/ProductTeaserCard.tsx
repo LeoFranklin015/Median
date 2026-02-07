@@ -1,6 +1,7 @@
 "use client"
 import { motion } from "framer-motion"
 import { ArrowUpRight } from "lucide-react"
+import Link from "next/link"
 type ProductTeaserCardProps = {
   dailyVolume?: string
   dailyVolumeLabel?: string
@@ -26,10 +27,10 @@ export const ProductTeaserCard = (props: ProductTeaserCardProps) => {
     // Use local TradingView-style candles video by default
     videoSrc = "/candles.mp4",
     posterSrc = "",
-    primaryButtonText = "Launch App",
-    primaryButtonHref = "",
-    secondaryButtonText = "View Docs",
-    secondaryButtonHref = "",
+    primaryButtonText = "Markets",
+    primaryButtonHref = "/markets",
+    secondaryButtonText = "Portfolio",
+    secondaryButtonHref = "/portfolio",
   } = props
 
   // @return
@@ -96,25 +97,23 @@ export const ProductTeaserCard = (props: ProductTeaserCardProps) => {
 
             <ul className="flex gap-1.5 flex-wrap mt-10">
               <li>
-                <a
+                <Link
                   href={primaryButtonHref}
-                  onClick={(e) => e.preventDefault()}
                   className="block cursor-pointer text-background bg-[#FFD700] rounded-full px-[18px] py-[15px] text-base leading-4 whitespace-nowrap transition-all duration-150 ease-[cubic-bezier(0.455,0.03,0.515,0.955)] hover:rounded-2xl hover:bg-[#FFED4E]"
                   style={{
                     fontWeight: "500",
                   }}
                 >
                   {primaryButtonText}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href={secondaryButtonHref}
-                  onClick={(e) => e.preventDefault()}
                   className="block cursor-pointer text-foreground border border-foreground rounded-full px-[18px] py-[15px] text-base leading-4 whitespace-nowrap transition-all duration-150 ease-[cubic-bezier(0.455,0.03,0.515,0.955)] hover:rounded-2xl"
                 >
                   {secondaryButtonText}
-                </a>
+                </Link>
               </li>
             </ul>
             </div>
