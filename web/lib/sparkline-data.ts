@@ -31,7 +31,7 @@ export type AssetData = {
   marketCap?: string
   addedDate?: string // "2 days ago", "1 week ago" for Newly Added
   address?: string // ERC20 token address for this stock
-  chainId?: number // Chain ID where this token exists (11155111 Sepolia, 84532 Base Sepolia, etc.)
+  chainId?: number // Chain ID where this stock is deployed
 }
 
 // Canonical list of on-chain stock tokens (15 only) mapped to real-world tickers
@@ -51,7 +51,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$3.6T",
     address: "0x9530f7d8F774cE3b3eDa95229E24687Fe072dD7B",
-    chainId: 11155111, // Ethereum Sepolia
+    chainId: 11155111, // Sepolia
   },
   {
     id: "2",
@@ -130,8 +130,8 @@ export const ASSETS: AssetData[] = [
     category: "Technology",
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$4.7T",
-    address: "0xD19b51A44a13213B3afCCFf91245f2dAee5D570B",
-    chainId: 11155111, // Ethereum Sepolia
+    address: "0xD19b51A44a13213B3afCCFf91245f2dAee5D570B", // Sepolia
+    chainId: 11155111, // Sepolia
   },
   {
     id: "7",
@@ -210,8 +210,8 @@ export const ASSETS: AssetData[] = [
     category: "Technology",
     categories: ["Technology", "Small Cap"],
     marketCap: "$0.3B",
-    address: "0xC11E33c52dac4B95b4E4B85dC67B365e1c667cBC",
-    chainId: 11155111, // Ethereum Sepolia
+    address: "0xC11E33c52dac4B95b4E4B85dC67B365e1c667cBC", // Sepolia
+    chainId: 11155111, // Sepolia
   },
   {
     id: "12",
