@@ -34,7 +34,7 @@ export const ProductTeaserCard = (props: ProductTeaserCardProps) => {
 
   // @return
   return (
-    <section className="w-full px-8 pt-32 pb-32">
+    <section className="w-full px-8 pt-32 pb-32 bg-black">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-12 gap-8 items-center">
           <motion.div
@@ -128,9 +128,10 @@ export const ProductTeaserCard = (props: ProductTeaserCardProps) => {
               ease: [0.21, 0.8, 0.35, 1],
               delay: 0.15,
             }}
-            className="col-span-12 lg:col-span-6 flex"
+            className="col-span-12 lg:col-span-6 flex relative"
           >
-            <div className="relative w-full aspect-[16/11] rounded-[40px] bg-black overflow-hidden shadow-[0_24px_80px_rgba(0,0,0,0.75)] border border-zinc-800/80">
+            <div className="relative w-full aspect-[16/11]">
+              {/* Video with edge fades to blend into black background */}
               <video
                 src={videoSrc}
                 autoPlay
@@ -139,10 +140,15 @@ export const ProductTeaserCard = (props: ProductTeaserCardProps) => {
                 playsInline
                 poster={posterSrc || undefined}
                 className="h-full w-full object-cover"
+                style={{
+                  maskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 50%, transparent 90%)',
+                  WebkitMaskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 50%, transparent 90%)',
+                }}
               />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
-              <div className="absolute left-4 bottom-4 flex items-center gap-2 text-xs text-zinc-200/80">
-                <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-500/25 text-emerald-200 border border-emerald-400/40">
+
+              {/* Label */}
+              <div className="absolute left-4 bottom-4 flex items-center gap-2 text-xs text-zinc-200/80 z-10">
+                <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 backdrop-blur-md">
                   Live candles preview
                 </span>
                 <span className="hidden sm:inline text-zinc-400">
