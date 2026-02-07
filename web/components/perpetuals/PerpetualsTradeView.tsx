@@ -543,20 +543,38 @@ export function PerpetualsTradeView() {
     [selectedPrice, selectedTicker]
   )
 
-  // Decide which candle source to use
-  let candleData = mockData
-  let candleLoading = false
-  let candleError: string | null = null
+  // Decide which candle source to use (useMemo to ensure React detects changes)
+  const candleData = useMemo(() => {
+    if (isStock) {
+      return stockCandleData.length > 0 ? stockCandleData : mockData
+    } else {
+      return isSupported ? bybitData : mockData
+    }
+  }, [isStock, stockCandleData, mockData, isSupported, bybitData])
 
-  if (isStock) {
-    candleData = stockCandleData.length > 0 ? stockCandleData : mockData
-    candleLoading = stockCandleLoading && stockCandleData.length === 0
-    candleError = stockCandleError
-  } else {
-    candleData = isSupported ? bybitData : mockData
-    candleLoading = bybitCandleLoading && (!isSupported || bybitData.length === 0)
-    candleError = bybitCandleError
-  }
+  const candleLoading = isStock
+    ? stockCandleLoading && stockCandleData.length === 0
+    : bybitCandleLoading && (!isSupported || bybitData.length === 0)
+
+  const candleError = isStock ? stockCandleError : bybitCandleError
+
+  // Debug: Log when candle data changes
+  useEffect(() => {
+    if (candleData.length > 0) {
+      const lastCandle = candleData[candleData.length - 1]
+      const timeNum = typeof lastCandle.time === 'number' ? lastCandle.time : Number(lastCandle.time)
+      console.log(`📊 [PerpetualsTradeView] Candle data updated for ${selectedTicker}:`, {
+        count: candleData.length,
+        lastCandle: {
+          time: new Date(timeNum * 1000).toLocaleTimeString(),
+          O: lastCandle.open,
+          H: lastCandle.high,
+          L: lastCandle.low,
+          C: lastCandle.close
+        }
+      })
+    }
+  }, [candleData, selectedTicker])
 
   // Filter markets based on search and tab
   const filteredMarkets = useMemo(() => {
