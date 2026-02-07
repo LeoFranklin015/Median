@@ -90,13 +90,13 @@ export const CHAIN_OPTIONS = [
   { id: "arc-testnet", name: "Arc Testnet", chainId: arcTestnet.id },
 ] as const
 
-// Chain logo URLs (DefiLlama CDN for mainnet logos; Arc uses official favicon)
+// Chain logo URLs (DefiLlama CDN + Cryptologos/Cryptorank for Optimism & Arc)
 export const CHAIN_LOGOS: Record<string, string> = {
   "ethereum-sepolia": "https://icons.llama.fi/chains/rsz_ethereum.jpg",
   "base-sepolia": "https://icons.llama.fi/chains/rsz_base.jpg",
   "arbitrum-sepolia": "https://icons.llama.fi/chains/rsz_arbitrum.jpg",
-  "optimism-sepolia": "https://icons.llama.fi/chains/rsz_optimism.jpg",
-  "arc-testnet": "https://testnet.arcscan.app/favicon.ico",
+  "optimism-sepolia": "https://cryptologos.cc/logos/optimism-ethereum-op-logo.png?v=040",
+  "arc-testnet": "https://img.cryptorank.io/coins/arc1755596336233.png",
 }
 
 // Block explorer base URLs for token/address links
