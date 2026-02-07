@@ -15,6 +15,7 @@ import { ChevronDown, ArrowDown, HelpCircle, Copy, Loader2 } from "lucide-react"
 import type { AssetData } from "@/lib/sparkline-data"
 import { useAssetDetail } from "@/hooks/useAssetDetail"
 import { cn, getStockLogoUrl } from "@/lib/utils"
+import { CHAIN_LOGOS, BLOCK_EXPLORER_BASE, getChainOptionByChainId } from "@/lib/chains"
 import { useYellowNetwork } from "@/lib/yellowNetwork/YellowNetworkContext"
 import { YELLOW_CONFIG } from "@/lib/yellowNetwork/config"
 import { useAccount } from "wagmi"
@@ -44,16 +45,45 @@ function sampleChartData(
   return data.filter((_, i) => i % step === 0).slice(-count)
 }
 
-function ChainLogo({ color, children }: { color: string; children?: React.ReactNode }) {
+function ChainLogoSmall({
+  chainId,
+  chainName,
+  size = "md",
+}: {
+  chainId: string
+  chainName: string
+  size?: "sm" | "md"
+}) {
+  const [failed, setFailed] = useState(false)
+  const logoUrl = CHAIN_LOGOS[chainId]
+  const cls = size === "sm" ? "w-5 h-5" : "w-8 h-8"
+  const initial = chainName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+
+  if (failed || !logoUrl) {
+    return (
+      <div
+        className={cn(
+          cls,
+          "rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold bg-muted text-muted-foreground"
+        )}
+        title={chainName}
+      >
+        {initial}
+      </div>
+    )
+  }
   return (
-    <div
-      className={cn(
-        "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold",
-        color
-      )}
-    >
-      {children}
-    </div>
+    <img
+      src={logoUrl}
+      alt={chainName}
+      className={cn(cls, "rounded-full flex-shrink-0 object-cover bg-muted")}
+      onError={() => setFailed(true)}
+    />
   )
 }
 
@@ -459,31 +489,60 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-border">
               {/* Left column */}
               <div className="space-y-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Supported Chains</p>
-                  <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                      <div className="w-4 h-4 rounded-sm bg-violet-500" />
+                {liveData.chainId && liveData.address && (
+                  <>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Deployed On</p>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const chainOpt = getChainOptionByChainId(liveData.chainId!)
+                          if (!chainOpt) return null
+                          return (
+                            <>
+                              <ChainLogoSmall
+                                chainId={chainOpt.id}
+                                chainName={chainOpt.name}
+                                size="md"
+                              />
+                              <span className="text-sm font-medium text-foreground">
+                                {chainOpt.name}
+                              </span>
+                            </>
+                          )
+                        })()}
+                      </div>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 via-blue-500 to-emerald-400 flex items-center justify-center" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Onchain Address</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-foreground">
-                      0xf3e4...f1a4
-                    </span>
-                    <button
-                      type="button"
-                      className="p-1 hover:bg-muted rounded"
-                      aria-label="Copy"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Onchain Address</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-mono text-foreground">
+                          {liveData.address.slice(0, 6)}...{liveData.address.slice(-4)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(liveData.address!)
+                            toast.success("Address copied to clipboard")
+                          }}
+                          className="p-1 hover:bg-muted rounded"
+                          aria-label="Copy address"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                        {liveData.chainId && BLOCK_EXPLORER_BASE[liveData.chainId] && (
+                          <a
+                            href={`${BLOCK_EXPLORER_BASE[liveData.chainId]}/address/${liveData.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-muted-foreground hover:text-foreground underline"
+                          >
+                            View on explorer
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Category</p>
                   <div className="flex gap-2 flex-wrap">
@@ -649,10 +708,29 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 </button>
               </div>
               <div className="flex items-center gap-2 px-4">
-                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
-                  ⟠
-                </div>
-                <span className="text-sm font-medium text-foreground">Ethereum</span>
+                {liveData.chainId ? (
+                  (() => {
+                    const chainOpt = getChainOptionByChainId(liveData.chainId!)
+                    if (!chainOpt) return <span className="text-sm font-medium text-foreground">—</span>
+                    return (
+                      <>
+                        <ChainLogoSmall
+                          chainId={chainOpt.id}
+                          chainName={chainOpt.name}
+                          size="sm"
+                        />
+                        <span className="text-sm font-medium text-foreground">{chainOpt.name}</span>
+                      </>
+                    )
+                  })()
+                ) : (
+                  <>
+                    <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs">
+                      ⟠
+                    </div>
+                    <span className="text-sm font-medium text-foreground">—</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -772,18 +850,30 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 additional information below.
               </p>
 
-              {/* Also Available On */}
-              <div className="pt-4 border-t border-border">
-                <p className="text-xs text-muted-foreground mb-3">Also Available On</p>
-                <div className="flex items-center gap-2">
-                  <ChainLogo color="bg-violet-500" />
-                  <ChainLogo color="bg-amber-400 text-amber-900" />
-                  <span className="text-sm text-muted-foreground">
-                    & 2 more{" "}
-                    <ChevronDown className="w-4 h-4 inline -rotate-90" />
-                  </span>
+              {/* Token deployed on */}
+              {liveData.chainId && liveData.address && (
+                <div className="pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-3">Token Deployed On</p>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const chainOpt = getChainOptionByChainId(liveData.chainId!)
+                      if (!chainOpt) return null
+                      return (
+                        <>
+                          <ChainLogoSmall
+                            chainId={chainOpt.id}
+                            chainName={chainOpt.name}
+                            size="sm"
+                          />
+                          <span className="text-sm font-medium text-foreground">
+                            {chainOpt.name}
+                          </span>
+                        </>
+                      )
+                    })()}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
