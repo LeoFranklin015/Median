@@ -63,19 +63,7 @@ export function AssetCard({
                 src={getStockLogoUrl(asset.ticker)}
                 alt={asset.ticker}
                 className="w-10 h-10 object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none"
-                  e.currentTarget.nextElementSibling?.classList.remove("hidden")
-                }}
               />
-              <span
-                className={cn(
-                  "hidden w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold",
-                  asset.iconBg
-                )}
-              >
-                {asset.icon}
-              </span>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
