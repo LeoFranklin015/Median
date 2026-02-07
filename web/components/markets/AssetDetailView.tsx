@@ -19,6 +19,7 @@ import { useYellowNetwork } from "@/lib/yellowNetwork/YellowNetworkContext"
 import { YELLOW_CONFIG } from "@/lib/yellowNetwork/config"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
+import { AssetSelector, type PaymentAsset } from "./AssetSelector"
 
 const CHART_RANGES = [
   { key: "1D", label: "1D" },
@@ -64,6 +65,12 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
   const [showMore, setShowMore] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [paymentAsset, setPaymentAsset] = useState<PaymentAsset>({
+    ticker: "USDC",
+    name: "USD Coin",
+    price: 1,
+    address: YELLOW_CONFIG.testToken,
+  })
 
   const { isConnected, isAuthenticated, connect, createAppSession, submitAppState, unifiedBalances } = useYellowNetwork()
   const { address } = useAccount()
@@ -83,7 +90,10 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
   const handlePayChange = (val: string) => {
     setPayAmount(val)
     if (parseFloat(val)) {
-      setReceiveAmount((parseFloat(val) / liveData.price).toFixed(4))
+      // Calculate based on payment asset price vs target asset price
+      const payAssetValue = parseFloat(val) * paymentAsset.price
+      const receiveQty = payAssetValue / liveData.price
+      setReceiveAmount(receiveQty.toFixed(4))
     } else {
       setReceiveAmount("0")
     }
@@ -92,9 +102,158 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
   const handleReceiveChange = (val: string) => {
     setReceiveAmount(val)
     if (parseFloat(val)) {
-      setPayAmount((parseFloat(val) * liveData.price).toFixed(2))
+      // Calculate based on target asset price vs payment asset price
+      const receiveAssetValue = parseFloat(val) * liveData.price
+      const payQty = receiveAssetValue / paymentAsset.price
+      setPayAmount(payQty.toFixed(4))
     } else {
       setPayAmount("0")
+    }
+  }
+
+  const handleAssetSelect = (newAsset: PaymentAsset) => {
+    setPaymentAsset(newAsset)
+    // Recalculate amounts with new payment asset
+    if (parseFloat(payAmount) > 0) {
+      const payAssetValue = parseFloat(payAmount) * newAsset.price
+      const receiveQty = payAssetValue / liveData.price
+      setReceiveAmount(receiveQty.toFixed(4))
+    }
+  }
+
+  // Original working USDC purchase function
+  const handleUSDCPurchase = async () => {
+    if (!address) {
+      toast.error("Wallet address not found")
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      toast.info("Creating trade session...")
+      const participants = [address, COUNTERPARTY_ADDRESS]
+
+      // Helper to convert to atomic units (USDC = 6 decimals, Others = 18)
+      const toAtomicUnits = (val: string, decimals: number) => {
+        if (!val) return "0"
+        return BigInt(Math.floor(parseFloat(val) * Math.pow(10, decimals))).toString()
+      }
+
+      const usdcAtomic = toAtomicUnits(payAmount, 6)
+      const assetAtomic = toAtomicUnits(receiveAmount, 18)
+
+      // Use actual asset addresses
+      const usdcAddress = YELLOW_CONFIG.testToken
+      const assetAddress = asset.address || '0x0000000000000000000000000000000000000000'
+
+      // Zero allocation session (working approach)
+      const initialAllocations = [
+        { participant: address, asset: usdcAddress, amount: "0" },
+        { participant: COUNTERPARTY_ADDRESS, asset: assetAddress, amount: "0" }
+      ]
+
+      const { appSessionId } = await createAppSession(participants, initialAllocations, "Median App")
+      toast.success("Session created!")
+
+      // Step 2: Submit App State (The Trade)
+      toast.info("Submitting trade order...")
+
+      // Zero allocations (backend processes actual trade from sessionData)
+      const tradeAllocations = [
+        { participant: address, asset: assetAddress, amount: "0" },
+        { participant: COUNTERPARTY_ADDRESS, asset: usdcAddress, amount: "0" }
+      ]
+
+      const sessionData = {
+        action: activeTab,
+        market: `${asset.ticker}/USDC`,
+        price: liveData.price,
+        amount: activeTab === "buy" ? usdcAtomic : assetAtomic,
+        timestamp: Date.now()
+      }
+
+      await submitAppState(appSessionId, tradeAllocations, "operate", sessionData)
+
+      toast.success(`Successfully ${activeTab === "buy" ? "bought" : "sold"} ${receiveAmount} ${asset.ticker}!`)
+
+      // Reset form
+      setPayAmount("0")
+      setReceiveAmount("0")
+
+    } catch (error) {
+      console.error("Trade failed:", error)
+      toast.error(`Trade failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // New function for stock-to-stock swaps
+  const handleStockSwap = async () => {
+    if (!address) {
+      toast.error("Wallet address not found")
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      toast.info("Creating swap session...")
+      const participants = [address, COUNTERPARTY_ADDRESS]
+
+      // Helper to convert to atomic units (stocks use 18 decimals)
+      const toAtomicUnits = (val: string, decimals: number) => {
+        if (!val) return "0"
+        return BigInt(Math.floor(parseFloat(val) * Math.pow(10, decimals))).toString()
+      }
+
+      const payAmountAtomic = toAtomicUnits(payAmount, 18)
+      const receiveAmountAtomic = toAtomicUnits(receiveAmount, 18)
+
+      // Use actual asset addresses for allocations
+      const paymentAddress = paymentAsset.address
+
+      // Only sender's source token allocation
+      const initialAllocations = [
+        { participant: address, asset: paymentAddress, amount: "0" }
+      ]
+
+      const { appSessionId } = await createAppSession(participants, initialAllocations, "Median App")
+      toast.success("Swap session created!")
+
+      // Step 2: Submit swap state
+      toast.info(`Submitting swap order: ${paymentAsset.ticker} → ${asset.ticker}...`)
+
+      // Only sender's source token allocation
+      const tradeAllocations = [
+        { participant: address, asset: paymentAddress, amount: "0" }
+      ]
+
+      const sessionData = {
+        action: "swap",
+        market: `${asset.ticker}/${paymentAsset.ticker}`,
+        paymentAsset: paymentAsset.ticker,
+        paymentAssetPrice: paymentAsset.price,
+        targetAsset: asset.ticker,
+        targetAssetPrice: liveData.price,
+        payAmountAtomic: payAmountAtomic,
+        receiveAmountAtomic: receiveAmountAtomic,
+        amount: payAmountAtomic,
+        timestamp: Date.now()
+      }
+
+      await submitAppState(appSessionId, tradeAllocations, "operate", sessionData)
+
+      toast.success(`Successfully swapping ${payAmount} ${paymentAsset.ticker} for ${receiveAmount} ${asset.ticker}!`)
+
+      // Reset form
+      setPayAmount("0")
+      setReceiveAmount("0")
+
+    } catch (error) {
+      console.error("Swap failed:", error)
+      toast.error(`Swap failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -115,74 +274,11 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
       return
     }
 
-    // Check balance if buying
-    if (activeTab === "buy") {
-      const usdcBalance = unifiedBalances.find((b) => b.asset.toLowerCase() === "usdc")
-      // Only proceed if we have a balance check, or assume user knows (for hackathon speed)
-      // but showing a warning is good.
-    }
-
-    setIsProcessing(true)
-    try {
-      // Step 1: Create App Session
-      toast.info("Creating trade session...")
-      const participants = [address, COUNTERPARTY_ADDRESS]
-
-      // Helper to convert to atomic units (USDC = 6 decimals, Others = 18)
-      const toAtomicUnits = (val: string, decimals: number) => {
-        if (!val) return "0"
-        return BigInt(Math.floor(parseFloat(val) * Math.pow(10, decimals))).toString()
-      }
-
-      const usdcAtomic = toAtomicUnits(payAmount, 6)
-      const assetAtomic = toAtomicUnits(receiveAmount, 18)
-
-      // Use actual asset addresses
-      // YELLOW_CONFIG.testToken is USDC on Sepolia
-      // asset.address is the stock token address
-      const usdcAddress = YELLOW_CONFIG.testToken;
-      const assetAddress = asset.address || '0x0000000000000000000000000000000000000000'; // Fallback if missing, but should be there
-
-      // To satisfy "Operate" (Sum Delta = 0), we must define initial state with the funds we plan to use.
-      // User request: Zero allocation session.
-      const initialAllocations = [
-        { participant: address, asset: usdcAddress, amount: "0" },
-        { participant: COUNTERPARTY_ADDRESS, asset: assetAddress, amount: "0" }
-      ]
-
-      const { appSessionId } = await createAppSession(participants, initialAllocations, "Median App")
-      toast.success("Session created!")
-
-      // Step 2: Submit App State (The Trade)
-      toast.info("Submitting trade order...")
-
-      // Trade: Zero allocations as requested.
-      const tradeAllocations = [
-        { participant: address, asset: assetAddress, amount: "0" },
-        { participant: COUNTERPARTY_ADDRESS, asset: usdcAddress, amount: "0" }
-      ]
-
-      const sessionData = {
-        action: activeTab, // "buy" or "sell"
-        market: `${asset.ticker}/USDC`,
-        price: liveData.price,
-        amount: activeTab === "buy" ? usdcAtomic : assetAtomic,
-        timestamp: Date.now()
-      }
-
-      await submitAppState(appSessionId, tradeAllocations, "operate", sessionData)
-
-      toast.success(`Successfully ${activeTab === "buy" ? "bought" : "sold"} ${receiveAmount} ${asset.ticker}!`)
-
-      // Reset form
-      setPayAmount("0")
-      setReceiveAmount("0")
-
-    } catch (error) {
-      console.error("Trade failed:", error)
-      toast.error(`Trade failed: ${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      setIsProcessing(false)
+    // Route to appropriate handler
+    if (paymentAsset.ticker === "USDC") {
+      await handleUSDCPurchase()
+    } else {
+      await handleStockSwap()
     }
   }
 
@@ -587,11 +683,13 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                     className="flex-1 bg-transparent text-foreground text-lg font-medium focus:outline-none min-w-0 placeholder:text-muted-foreground"
                     placeholder="0.00"
                   />
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
-                      $
-                    </div>
-                    <span className="text-sm font-medium text-foreground">USDC</span>
+                  <div className="flex-shrink-0">
+                    <AssetSelector
+                      selectedAsset={paymentAsset}
+                      onSelectAsset={handleAssetSelect}
+                      currentAssetTicker={asset.ticker}
+                      unifiedBalances={unifiedBalances}
+                    />
                   </div>
                 </div>
               </div>
@@ -650,8 +748,13 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Rate</span>
                   <span className="text-foreground">
-                    1 {liveData.ticker} = {Math.round(liveData.price)} USDC (
-                    ${liveData.price.toFixed(2)})
+                    1 {liveData.ticker} = {(liveData.price / paymentAsset.price).toFixed(4)} {paymentAsset.ticker}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Value</span>
+                  <span className="text-foreground">
+                    ${(parseFloat(payAmount || "0") * paymentAsset.price).toFixed(2)} USD
                   </span>
                 </div>
                 <div className="flex justify-between text-sm items-center">
@@ -675,7 +778,11 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
                 {!isWalletConnected
                   ? "Connect Wallet to Trade"
-                  : activeTab === "buy" ? "Buy " + asset.ticker : "Sell " + asset.ticker
+                  : activeTab === "buy"
+                  ? paymentAsset.ticker === "USDC"
+                    ? `Buy ${asset.ticker}`
+                    : `Swap ${paymentAsset.ticker} → ${asset.ticker}`
+                  : `Sell ${asset.ticker}`
                 }
               </button>
 

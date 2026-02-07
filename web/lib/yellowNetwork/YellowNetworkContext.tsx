@@ -250,7 +250,25 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
 
           try {
             const challengeResponse = response as AuthChallengeResponse;
-            const allowances = [{ asset: 'usdc', amount: '1000000000' }];
+            const allowances = [
+              { asset: 'usdc', amount: '1000000000000' }, // 1M USDC (6 decimals)
+              // All stock tokens - 1M tokens each (18 decimals) - uppercase symbols
+              { asset: 'AAPL', amount: '1000000000000000000000000' },
+              { asset: 'NVDA', amount: '1000000000000000000000000' },
+              { asset: 'ONDS', amount: '1000000000000000000000000' },
+              { asset: 'AMZN', amount: '1000000000000000000000000' },
+              { asset: 'PFE', amount: '1000000000000000000000000' },
+              { asset: 'META', amount: '1000000000000000000000000' },
+              { asset: 'GOOG', amount: '1000000000000000000000000' },
+              { asset: 'INTC', amount: '1000000000000000000000000' },
+              { asset: 'NFLX', amount: '1000000000000000000000000' },
+              { asset: 'MSFT', amount: '1000000000000000000000000' },
+              { asset: 'SOFI', amount: '1000000000000000000000000' },
+              { asset: 'AMD', amount: '1000000000000000000000000' },
+              { asset: 'TSLA', amount: '1000000000000000000000000' },
+              { asset: 'OPEN', amount: '1000000000000000000000000' },
+              { asset: 'JPM', amount: '1000000000000000000000000' },
+            ];
             const authParams = {
               scope: 'median.app',
               application: currentAddress as `0x${string}`,
@@ -540,7 +558,7 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
                 addLog('Order filled! Auto-transferring asset...', sessionData);
 
                 // Determine asset and amount
-                const market = sessionData.market || ''; // e.g., "AAPL/USDC"
+                const market = sessionData.market || ''; // e.g., "AAPL/USDC" or "GOOG/AAPL"
                 const ticker = market.split('/')[0];
                 const filledQuantity = sessionData.filledQuantity;
 
@@ -552,11 +570,20 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
                 if (counterparty && currentAddress && sessionKeyRef.current) {
                   const sessionSigner = createECDSAMessageSigner(sessionKeyRef.current.privateKey);
 
-                  // For 'buy', we pay the amount (USDC)
-                  // For 'sell', we would pay the asset
-                  const isBuy = sessionData.action === 'buy';
-                  const asset = isBuy ? 'usdc' : ticker; // Simplified: usually Quote vs Base
-                  const amount = sessionData.amount; // already in atoms
+                  // Determine which asset to transfer based on action
+                  let asset: string;
+                  let amount: string;
+
+                  if (sessionData.action === 'swap') {
+                    // For swap: transfer the payment asset (source token)
+                    asset = sessionData.paymentAsset || 'AAPL';
+                    amount = sessionData.payAmountAtomic || sessionData.amount;
+                  } else {
+                    // For buy/sell: original logic
+                    const isBuy = sessionData.action === 'buy';
+                    asset = isBuy ? 'usdc' : ticker;
+                    amount = sessionData.amount;
+                  }
 
                   if (asset && amount) {
                     // Start async transfer without awaiting
@@ -797,7 +824,25 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
             throw new Error('Wallet or session key not available');
           }
 
-          const allowances = [{ asset: 'usdc', amount: '1000000000' }];
+          const allowances = [
+            { asset: 'usdc', amount: '1000000000000' }, // 1M USDC (6 decimals)
+            // All stock tokens - 1M tokens each (18 decimals) - uppercase symbols
+            { asset: 'AAPL', amount: '1000000000000000000000000' },
+            { asset: 'NVDA', amount: '1000000000000000000000000' },
+            { asset: 'ONDS', amount: '1000000000000000000000000' },
+            { asset: 'AMZN', amount: '1000000000000000000000000' },
+            { asset: 'PFE', amount: '1000000000000000000000000' },
+            { asset: 'META', amount: '1000000000000000000000000' },
+            { asset: 'GOOG', amount: '1000000000000000000000000' },
+            { asset: 'INTC', amount: '1000000000000000000000000' },
+            { asset: 'NFLX', amount: '1000000000000000000000000' },
+            { asset: 'MSFT', amount: '1000000000000000000000000' },
+            { asset: 'SOFI', amount: '1000000000000000000000000' },
+            { asset: 'AMD', amount: '1000000000000000000000000' },
+            { asset: 'TSLA', amount: '1000000000000000000000000' },
+            { asset: 'OPEN', amount: '1000000000000000000000000' },
+            { asset: 'JPM', amount: '1000000000000000000000000' },
+          ];
           const authParams: AuthRequestParams = {
             address: currentAddress,
             session_key: currentSessionKey.address,

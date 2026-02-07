@@ -466,67 +466,67 @@ class WebSocketService {
             if (sessionData.action && !sessionData.executionStatus) {
                 console.log('🤖 Detected spot trade action, executing...');
 
-                const market = sessionData.market; // e.g., "AAPL/USDC"
+                const market = sessionData.market; // e.g., "AAPL/USDC" or "AAPL/TSLA"
                 if (!market) {
                     console.log('📦 No market field, skipping spot trade processing');
                     return;
                 }
-                const ticker = market.split('/')[0];
-                const userAmount = parseFloat(sessionData.amount || '0'); // Amount in atomic units or whatever format user sent
 
-                // 1. Fetch Price from Finnhub
-                let price = 0;
-                try {
-                    const apiKey = process.env.FINNHUB_API_KEY;
-                    if (apiKey) {
-                        const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`);
-                        const data = await response.json() as { c: number };
-                        price = data.c; // 'c' is current price
-                        console.log(`📈 Fetched price for ${ticker}: ${price}`);
-                    } else {
-                        console.warn('⚠️ FINNHUB_API_KEY not set, using mock price');
-                        price = 270.00; // Mock
-                    }
-                } catch (err) {
-                    console.error('Failed to fetch price', err);
-                    price = 270.00; // Fallback
+                // Parse market format: TARGET/PAYMENT
+                const [targetTicker, paymentTicker] = market.split('/');
+                const paymentAsset = sessionData.paymentAsset || paymentTicker;
+
+                console.log(`🔄 Processing ${market} trade (${targetTicker} with ${paymentAsset})`);
+
+                // 1. Fetch target asset price
+                const targetPrice = await this.fetchPrice(targetTicker);
+                if (!targetPrice || targetPrice <= 0) {
+                    console.error(`❌ Unable to fetch valid price for ${targetTicker}`);
+                    return;
                 }
+                console.log(`📈 Target price for ${targetTicker}: $${targetPrice}`);
 
-                // 2. Calculate Stock Amount
-                // If user sent USDC amount (in atomic units?), we need to normalize.
-                // Assuming user sent request in atomic units but logical amount is what matters for "value".
-                // User logic: "if amount is 270.01 then return ... value as 1"
-                // Let's assume user sends atomic units but we process roughly for now or strict?
-                // The request says: "if amount is 270.01 then return as stock name aapl and value as 1"
-                // It implies Amount / Price = StockQty.
-                // Since `userAmount` might be in atomic units (6 decimals for USDC), and Price is in dollars.
-                // WE NEED TO KNOW DECIMALS. USDC=6.
+                // 2. Fetch payment asset price
+                let paymentPrice = 1.0; // Default for USDC
+                if (paymentAsset.toUpperCase() !== 'USDC') {
+                    paymentPrice = await this.fetchPrice(paymentAsset);
+                    if (!paymentPrice || paymentPrice <= 0) {
+                        console.error(`❌ Unable to fetch valid price for ${paymentAsset}`);
+                        return;
+                    }
+                }
+                console.log(`📈 Payment price for ${paymentAsset}: $${paymentPrice}`);
 
-                // Let's simplified calculation:
-                // RealAmount = UserAmount / 1e6
-                // StockQty = RealAmount / Price
+                // 3. Calculate exchange based on both prices
+                // Get payment amount from session data
+                const payAmountAtomic = BigInt(sessionData.payAmountAtomic || sessionData.amount || '0');
+                const decimals = paymentAsset.toUpperCase() === 'USDC' ? 6 : 18;
+                const payAmount = Number(payAmountAtomic) / Math.pow(10, decimals);
 
-                // However, user snippet sends `activeTab === "buy" ? usdcAtomic : assetAtomic`.
-                // If Buy, amount is USDC Atomic.
-                const realUsdcAmount = userAmount / 1_000_000;
-                const stockQty = realUsdcAmount / price;
+                // Calculate value in USD
+                const payValueUSD = payAmount * paymentPrice;
 
-                console.log(`🧮 Calculated trade: ${realUsdcAmount} USDC / ${price} = ${stockQty} ${ticker}`);
+                // Calculate target stock quantity
+                const targetStockQty = payValueUSD / targetPrice;
 
-                // 3. Submit New State
-                // We need to pass the participants/allocations from current state or modify them?
-                // User instructions: "submit this return json to the app state with next version number"
-                // We will keep allocations as is (Zero) per current flow, just update sessionData.
+                console.log(`🔄 Stock-for-Stock Trade Calculation:`);
+                console.log(`   Paying: ${payAmount} ${paymentAsset} @ $${paymentPrice}`);
+                console.log(`   Value: $${payValueUSD}`);
+                console.log(`   Receiving: ${targetStockQty} ${targetTicker} @ $${targetPrice}`);
 
+                // 4. Submit filled state
                 const executionData = {
                     ...sessionData,
                     executionStatus: 'filled',
-                    filledPrice: price,
-                    filledQuantity: stockQty,
+                    paymentAsset: paymentAsset,
+                    paymentPrice: paymentPrice,
+                    paymentAmount: payAmount,
+                    filledPrice: targetPrice,
+                    filledQuantity: targetStockQty,
+                    totalValueUSD: payValueUSD,
                     timestamp: Date.now()
                 };
 
-                // We need the App Session ID. It's in params.appSessionId
                 const appSessionId = params.appSessionId;
 
                 // Reconstruct allocations (using 0 as requested/current state)
@@ -811,18 +811,20 @@ class WebSocketService {
         try {
             const params = message.params as any;
 
-            // Extract the sender address from the transfer message
-            // The transfer message contains transactions array with from_account
+            // Extract the sender address and asset from the transfer message
             const transactions = params.transactions || [];
             if (transactions.length === 0) {
-                console.log('📋 No transactions in transfer message, skipping stock token response');
+                console.log('📋 No transactions in transfer message, skipping response');
                 return;
             }
 
-            const senderAddress = transactions[0].fromAccount || transactions[0].from_account;
+            const transaction = transactions[0];
+            const senderAddress = transaction.fromAccount || transaction.from_account;
+            const receivedAsset = transaction.asset || 'USDC'; // Asset received from sender
+            const receivedAmount = transaction.amount;
 
             if (!senderAddress) {
-                console.log('📋 No sender address found in transfer message, skipping stock token response');
+                console.log('📋 No sender address found in transfer message, skipping response');
                 return;
             }
 
@@ -833,17 +835,16 @@ class WebSocketService {
                 return;
             }
 
-            console.log(`📋 Transfer received from: ${senderAddress}`);
+            console.log(`📋 Received ${receivedAmount} ${receivedAsset} from ${senderAddress}`);
 
-            // Get app sessions to find the one with filled state
+            // Get app sessions to find the one matching this transfer
             const sessions = await this.getAppSessions();
 
-            // Find a session with filledQuantity in session_data that involves the sender
-            let filledSession = null;
-            let filledData = null;
+            // Find a session that expects this payment asset from this sender
+            let matchingSession = null;
+            let sessionData = null;
 
             for (const session of sessions) {
-                // Check if the sender is a participant in this session
                 const sessionObj = session as any;
                 const participants = sessionObj.participants || [];
                 const isParticipant = participants.some(
@@ -855,23 +856,21 @@ class WebSocketService {
 
                 if (rawSessionData) {
                     try {
-                        const sessionData = typeof rawSessionData === 'string'
+                        const data = typeof rawSessionData === 'string'
                             ? JSON.parse(rawSessionData)
                             : rawSessionData;
 
-                        if (sessionData.filledQuantity && sessionData.executionStatus === 'filled') {
-                            // Prefer sessions where sender is a participant
-                            if (isParticipant || !filledSession) {
-                                filledSession = session;
-                                filledData = sessionData;
-                                console.log(`📋 Found filled session: ${sessionObj.appSessionId}`);
-                                console.log(`   FilledQuantity: ${sessionData.filledQuantity}`);
-                                console.log(`   Market: ${sessionData.market}`);
-                                console.log(`   Sender is participant: ${isParticipant}`);
-
-                                // If sender is participant, this is the best match
-                                if (isParticipant) break;
-                            }
+                        // Check if this session expects this payment asset from this participant
+                        const expectedPaymentAsset = data.paymentAsset || 'USDC';
+                        if (data.executionStatus === 'filled' &&
+                            expectedPaymentAsset.toUpperCase() === receivedAsset.toUpperCase() &&
+                            isParticipant) {
+                            matchingSession = session;
+                            sessionData = data;
+                            console.log(`📋 Found matching session: ${sessionObj.appSessionId}`);
+                            console.log(`   Expected: ${expectedPaymentAsset}, Received: ${receivedAsset}`);
+                            console.log(`   Market: ${data.market}`);
+                            break;
                         }
                     } catch (e) {
                         console.log('📋 Could not parse session_data:', e);
@@ -879,32 +878,29 @@ class WebSocketService {
                 }
             }
 
-            if (!filledSession || !filledData) {
-                console.log('📋 No filled session found, skipping stock token response');
+            if (!matchingSession || !sessionData) {
+                console.log('📋 No matching session found for this transfer');
                 return;
             }
 
-            // Send stock tokens back to the sender using the actual ticker
-            const stockQuantity = filledData.filledQuantity;
-            const market = filledData.market || 'AAPL/USDC';
-            const ticker = market.split('/')[0].toUpperCase(); // e.g., 'AAPL', 'MSFT', 'TSLA'
+            // Send the target stock tokens to buyer
+            const market = sessionData.market || 'AAPL/USDC';
+            const targetTicker = market.split('/')[0].toUpperCase();
+            const targetAmount = String(sessionData.filledQuantity);
 
-            // filledQuantity is already in human-readable format, use as-is
-            const stockAmount = String(stockQuantity);
-
-            console.log(`💸 Sending ${stockQuantity} ${ticker} tokens to ${senderAddress}`);
+            console.log(`💸 Sending ${targetAmount} ${targetTicker} to ${senderAddress}`);
 
             await this.transfer(senderAddress, [
                 {
-                    asset: ticker, // Use the actual stock ticker (AAPL, MSFT, TSLA, etc.)
-                    amount: stockAmount
+                    asset: targetTicker,
+                    amount: targetAmount
                 }
             ]);
 
-            console.log(`✅ ${ticker} tokens sent successfully to ${senderAddress}`);
+            console.log(`✅ Trade completed: ${receivedAmount} ${receivedAsset} → ${targetAmount} ${targetTicker}`);
 
         } catch (error) {
-            console.error('❌ Error processing transfer and sending stock tokens:', error);
+            console.error('❌ Error processing transfer and sending tokens:', error);
         }
     }
 
