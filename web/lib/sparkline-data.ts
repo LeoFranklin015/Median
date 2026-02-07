@@ -130,8 +130,7 @@ export const ASSETS: AssetData[] = [
     category: "Technology",
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$4.7T",
-    address: "0xD19b51A44a13213B3afCCFf91245f2dAee5D570B",
-    chainId: 11155111, // Sepolia
+    address: "0xD19b51A44a13213B3afCCFf91245f2dAee5D570B", // Sepolia
   },
   {
     id: "7",
@@ -210,8 +209,7 @@ export const ASSETS: AssetData[] = [
     category: "Technology",
     categories: ["Technology", "Small Cap"],
     marketCap: "$0.3B",
-    address: "0xC11E33c52dac4B95b4E4B85dC67B365e1c667cBC",
-    chainId: 11155111, // Sepolia
+    address: "0xC11E33c52dac4B95b4E4B85dC67B365e1c667cBC", // Sepolia
   },
   {
     id: "12",

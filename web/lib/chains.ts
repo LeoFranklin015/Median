@@ -99,6 +99,20 @@ export const CHAIN_LOGOS: Record<string, string> = {
   "arc-testnet": "https://testnet.arcscan.app/favicon.ico",
 }
 
+// Block explorer base URLs for token/address links
+export const BLOCK_EXPLORER_BASE: Record<number, string> = {
+  [sepolia.id]: "https://sepolia.etherscan.io",
+  [baseSepolia.id]: "https://sepolia.basescan.org",
+  [arbitrumSepolia.id]: "https://sepolia.arbiscan.io",
+  [optimismSepolia.id]: "https://sepolia-optimism.etherscan.io",
+  [arcTestnet.id]: "https://testnet.arcscan.app",
+}
+
+// Get chain option by chainId (for logo, name, etc.)
+export function getChainOptionByChainId(chainId: number) {
+  return CHAIN_OPTIONS.find((c) => c.chainId === chainId)
+}
+
 // USDC token address per chain (testnet)
 export const USDC_BY_CHAIN: Record<number, `0x${string}`> = {
   [sepolia.id]: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as `0x${string}`,
