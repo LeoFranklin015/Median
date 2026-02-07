@@ -106,12 +106,10 @@ export function PortfolioView() {
     refreshLedgerEntries,
     depositToCustody,
     withdrawFromCustody,
+    withdrawStock,
     addToTradingBalance,
     withdrawFromTradingBalance,
     isAuthenticated,
-    createAppSession,
-    submitAppState,
-    transfer,
   } = useYellowNetwork()
 
   // Backend wallet address for cross-chain withdrawals
@@ -734,8 +732,31 @@ export function PortfolioView() {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         availableBalance={unifiedUsdcBalance}
+        stockHoldings={stockHoldings.map(h => {
+          const asset = getAssetByTicker(h.ticker)
+          return {
+            ticker: h.ticker,
+            name: h.name,
+            amount: h.amount,
+            chainId: asset?.chainId || 11155111,
+            address: asset?.address || "",
+          }
+        })}
         onConfirm={async (payload: WithdrawPayload) => {
           try {
+            // Handle stock withdrawals
+            if (payload.type === "stock") {
+              if (!payload.ticker || !payload.address || !payload.chainId) {
+                toast.error("Stock ticker, address or chain not found")
+                return
+              }
+
+              // Use the withdrawStock function (creates channel, resizes, withdraws from custody)
+              await withdrawStock(payload.ticker, payload.address, payload.chainId, payload.amount)
+              return
+            }
+
+            // Handle USDC withdrawals (existing logic)
             const isCrossChain = payload.chainId !== SOURCE_CHAIN_ID
 
             if (isCrossChain) {

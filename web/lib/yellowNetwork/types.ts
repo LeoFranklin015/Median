@@ -86,6 +86,7 @@ export interface YellowNetworkActions {
   clearActivityLog: () => void;
   depositToCustody: (amount: string) => Promise<{ txHash: string }>;
   withdrawFromCustody: (amount: string) => Promise<{ txHash: string }>;
+  withdrawStock: (ticker: string, tokenAddress: string, chainId: number, amount: string) => Promise<void>;
   addToTradingBalance: (amount: string) => Promise<void>;
   withdrawFromTradingBalance: (amount: string) => Promise<void>;
   refreshLedgerEntries: () => Promise<void>;
