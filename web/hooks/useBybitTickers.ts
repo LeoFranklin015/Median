@@ -202,7 +202,7 @@ export function useBybitTickers() {
 
       ws.onclose = () => {
         wsRef.current = null
-        logStream("Closed")
+        logStream("Closed", null)
         if (!cancelled) {
           reconnectTimeoutRef.current = setTimeout(connect, 3000)
         }

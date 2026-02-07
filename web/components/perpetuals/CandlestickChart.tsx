@@ -100,7 +100,7 @@ function calculateSMA(data: OHLCData[], period: number): { time: number; value: 
       sum += data[i - j].close
     }
     result.push({
-      time: typeof data[i].time === "number" ? data[i].time : Math.floor(Number(data[i].time)),
+      time: (typeof data[i].time === "number" ? data[i].time : Math.floor(Number(data[i].time))) as number,
       value: sum / period,
     })
   }
@@ -119,14 +119,14 @@ function calculateEMA(data: OHLCData[], period: number): { time: number; value: 
   }
   let ema = sum / period
   result.push({
-    time: typeof data[period - 1].time === "number" ? data[period - 1].time : Math.floor(Number(data[period - 1].time)),
+    time: (typeof data[period - 1].time === "number" ? data[period - 1].time : Math.floor(Number(data[period - 1].time))) as number,
     value: ema,
   })
-  
+
   for (let i = period; i < data.length; i++) {
     ema = (data[i].close - ema) * multiplier + ema
     result.push({
-      time: typeof data[i].time === "number" ? data[i].time : Math.floor(Number(data[i].time)),
+      time: (typeof data[i].time === "number" ? data[i].time : Math.floor(Number(data[i].time))) as number,
       value: ema,
     })
   }
@@ -155,8 +155,8 @@ function calculateBB(data: OHLCData[], period: number, stdDev: number = 2): {
       sumSquares += Math.pow(data[i - j].close - sma, 2)
     }
     const std = Math.sqrt(sumSquares / period)
-    
-    const time = typeof data[i].time === "number" ? data[i].time : Math.floor(Number(data[i].time))
+
+    const time = (typeof data[i].time === "number" ? data[i].time : Math.floor(Number(data[i].time))) as number
     upper.push({ time, value: sma + stdDev * std })
     middle.push({ time, value: sma })
     lower.push({ time, value: sma - stdDev * std })
@@ -227,7 +227,6 @@ export function CandlestickChartComponent({
         borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
         timeVisible: true,
         secondsVisible: false,
-        rightBarSpacing: 12,
         barSpacing: 6,
       },
       handleScroll: {
@@ -238,7 +237,6 @@ export function CandlestickChartComponent({
         axisPressedMouseMove: true,
         mouseWheel: true,
         pinch: true,
-        pinchMaxItems: 10,
       },
     })
 
@@ -505,7 +503,7 @@ export function CandlestickChartComponent({
         value: d.volume ?? 0,
         color: d.close >= d.open ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)",
       }))
-      volumeSeries.setData(volData)
+      volumeSeries?.setData(volData)
       
       // Update indicators if changed
       if (indicatorsChanged && chartRef.current) {

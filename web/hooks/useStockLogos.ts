@@ -14,7 +14,9 @@ export function useStockLogos(): {
     fetch("/api/stocks/logos")
       .then((res) => (res.ok ? res.json() : {}))
       .then((data) => {
-        if (!cancelled && typeof data === "object") setLogos(data)
+        if (!cancelled && typeof data === "object" && data !== null) {
+          setLogos(data as Record<string, string>)
+        }
       })
       .catch(() => {})
       .finally(() => {
