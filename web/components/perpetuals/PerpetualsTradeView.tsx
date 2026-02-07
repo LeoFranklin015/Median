@@ -105,7 +105,6 @@ const LEVERAGE_MARKS = [0.1, 1, 2, 5, 10, 25, 50, 100]
 const TOKEN_NAMES: Record<string, string> = {
   BTC: "Bitcoin",
   ETH: "Ethereum",
-  SOL: "Solana",
   LINK: "Chainlink",
   SUI: "Sui",
   DOGE: "Dogecoin",
@@ -131,7 +130,6 @@ const TOKEN_NAMES: Record<string, string> = {
 const MAX_LEVERAGE: Record<string, number> = {
   BTC: 100,
   ETH: 100,
-  SOL: 100,
   LINK: 100,
   SUI: 50,
   DOGE: 100,
@@ -163,7 +161,6 @@ function TokenLogo({ ticker, size = "md" }: { ticker: string; size?: "sm" | "md"
   }
   
   const fallbackColors: Record<string, string> = {
-    SOL: "from-violet-400 to-cyan-400",
     ETH: "from-indigo-400 to-violet-500",
     BTC: "from-amber-400 to-orange-500",
     USDC: "from-blue-500 to-blue-600",
@@ -239,7 +236,7 @@ export function PerpetualsTradeView() {
   const [leverage, setLeverage] = useState(25)
   const [payAmount, setPayAmount] = useState("")
   const [longAmount, setLongAmount] = useState("")
-  const [selectedTicker, setSelectedTicker] = useState("SOL")
+  const [selectedTicker, setSelectedTicker] = useState("META")
   const [marketDropdownOpen, setMarketDropdownOpen] = useState(false)
   const [marketSearchQuery, setMarketSearchQuery] = useState("")
   const [tpSlEnabled, setTpSlEnabled] = useState(true)

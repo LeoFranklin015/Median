@@ -72,7 +72,7 @@ export async function fetchCandles(
   const interval = RESOLUTION_SECONDS[resolution] ?? 86400
   const from = to - count * interval
   const url = `${FINNHUB_BASE}/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}&token=${token}`
-  const res = await fetch(url, { next: { revalidate: 300 } })
+  const res = await fetch(url, { cache: "no-store" })
   if (!res.ok) return null
   const data = await res.json()
   if (!data.c || data.c.length === 0) return null
