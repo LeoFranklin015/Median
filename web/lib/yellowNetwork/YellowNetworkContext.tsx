@@ -1284,16 +1284,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
     toast.info(`Depositing ${amount} USDC to custody...`);
 
     try {
-      // Get current gas price with buffer for L2 chains
-      const feeData = await publicClient.estimateFeesPerGas();
-      const maxFeePerGas = feeData.maxFeePerGas ? (feeData.maxFeePerGas * BigInt(150)) / BigInt(100) : undefined; // 50% buffer
-      const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? (feeData.maxPriorityFeePerGas * BigInt(150)) / BigInt(100) : undefined;
-
-      addLog('Gas estimation', {
-        maxFeePerGas: maxFeePerGas?.toString(),
-        maxPriorityFeePerGas: maxPriorityFeePerGas?.toString()
-      });
-
       // Step 1: Check current allowance using direct contract read
       let currentAllowance = BigInt(0);
       try {
@@ -1318,8 +1308,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
           abi: erc20Abi,
           functionName: 'approve',
           args: [custodyAddress, amountInUnits],
-          maxFeePerGas,
-          maxPriorityFeePerGas,
         });
 
         // Wait for approval tx to be mined
@@ -1336,8 +1324,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
         abi: custodyDepositAbi,
         functionName: 'deposit',
         args: [address, usdcToken, amountInUnits],
-        maxFeePerGas,
-        maxPriorityFeePerGas,
       });
 
       // Wait for deposit tx to be mined

@@ -110,6 +110,9 @@ export function PortfolioView() {
     addToTradingBalance,
     withdrawFromTradingBalance,
     isAuthenticated,
+    createAppSession,
+    submitAppState,
+    transfer,
   } = useYellowNetwork()
 
   // Backend wallet address for cross-chain withdrawals
