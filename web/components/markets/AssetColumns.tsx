@@ -27,19 +27,7 @@ function ColumnItem({
           src={getStockLogoUrl(asset.ticker)}
           alt={asset.ticker}
           className="w-9 h-9 object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = "none"
-            e.currentTarget.nextElementSibling?.classList.remove("hidden")
-          }}
         />
-        <span
-          className={cn(
-            "hidden w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold",
-            asset.iconBg
-          )}
-        >
-          {asset.icon}
-        </span>
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground truncate">

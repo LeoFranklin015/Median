@@ -32,11 +32,22 @@ function getApiKey(): string {
 export async function fetchQuote(symbol: string): Promise<FinnhubQuote | null> {
   const token = getApiKey()
   const url = `${FINNHUB_BASE}/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`
-  const res = await fetch(url, { next: { revalidate: 60 } })
-  if (!res.ok) return null
-  const data = await res.json()
-  if (data.c === 0 && data.d === 0 && data.dp === 0) return null
-  return data
+  try {
+    const res = await fetch(url, { cache: "no-store" })
+    if (!res.ok) {
+      console.error(`Failed to fetch quote for ${symbol}: ${res.status}`)
+      return null
+    }
+    const data = await res.json()
+    if (data.c === 0 && data.d === 0 && data.dp === 0) {
+      console.warn(`No data for ${symbol}`)
+      return null
+    }
+    return data
+  } catch (error) {
+    console.error(`Error fetching quote for ${symbol}:`, error)
+    return null
+  }
 }
 
 export async function fetchQuotes(

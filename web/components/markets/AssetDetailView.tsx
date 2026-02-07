@@ -312,19 +312,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                 src={getStockLogoUrl(liveData.ticker)}
                 alt={liveData.ticker}
                 className="w-12 h-12 object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none"
-                  e.currentTarget.nextElementSibling?.classList.remove("hidden")
-                }}
               />
-              <span
-                className={cn(
-                  "hidden w-12 h-12 rounded-lg flex items-center justify-center text-sm font-bold",
-                  liveData.iconBg
-                )}
-              >
-                {liveData.icon}
-              </span>
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground">
@@ -721,19 +709,7 @@ export function AssetDetailView({ asset }: { asset: AssetData }) {
                         src={getStockLogoUrl(liveData.ticker)}
                         alt={liveData.ticker}
                         className="w-6 h-6 object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none"
-                          e.currentTarget.nextElementSibling?.classList.remove("hidden")
-                        }}
                       />
-                      <span
-                        className={cn(
-                          "hidden w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
-                          liveData.iconBg
-                        )}
-                      >
-                        {liveData.icon.slice(0, 1)}
-                      </span>
                     </div>
                     <span className="text-sm font-medium text-foreground">
                       {liveData.ticker}

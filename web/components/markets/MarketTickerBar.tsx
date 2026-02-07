@@ -22,19 +22,7 @@ function TickerItem({ asset }: { asset: AssetWithQuote }) {
           src={getStockLogoUrl(asset.ticker)}
           alt={asset.ticker}
           className="w-8 h-8 object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = "none"
-            e.currentTarget.nextElementSibling?.classList.remove("hidden")
-          }}
         />
-        <span
-          className={cn(
-            "hidden w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
-            asset.iconBg
-          )}
-        >
-          {asset.icon}
-        </span>
       </div>
       <div className="flex flex-col">
         <span className="text-sm font-semibold text-foreground whitespace-nowrap">
