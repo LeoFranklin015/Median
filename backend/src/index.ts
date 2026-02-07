@@ -15,7 +15,7 @@ import { transfer } from './utils/session/transfer';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 app.use(cors());
 app.use(express.json());
@@ -238,7 +238,10 @@ app.post('/transfer', async (req: Request, res: Response) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// Bind to 0.0.0.0 for Render deployment
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server is running on http://${HOST}:${PORT}`);
   console.log('WebSocket service will connect automatically...');
 });
