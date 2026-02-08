@@ -44,7 +44,7 @@ export function getChainByName(name: keyof typeof SUPPORTED_CHAINS): ChainConfig
 
 // Default chain (Sepolia) for backwards compatibility
 export const YELLOW_CONFIG = {
-  ws: 'ws://localhost:8000/ws',
+  ws: 'wss://yellow.philotheephilix.in/ws',
   faucet: 'https://clearnet-sandbox.yellow.com/faucet/requestTokens',
   custody: SUPPORTED_CHAINS.sepolia.custody,
   adjudicator: SUPPORTED_CHAINS.sepolia.adjudicator,
