@@ -51,7 +51,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$3.6T",
     address: "0x9530f7d8F774cE3b3eDa95229E24687Fe072dD7B",
-    chainId: 11155111, // Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "2",
@@ -67,7 +67,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Consumer", "Large Cap", "Growth"],
     marketCap: "$2.2T",
     address: "0xaA7389Cc693354624D487737989F6806f815A5D2",
-    chainId: 84532, // Base Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "3",
@@ -83,7 +83,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$2.4T",
     address: "0xEC018557a1Ab92DC04D2655E268E1FEcf321F8b5",
-    chainId: 421614, // Arbitrum Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "4",
@@ -99,7 +99,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$3.4T",
     address: "0xf1b6A03293463BF824aC4F559C2948E1C5b1852e",
-    chainId: 5042002, // Arc Testnet
+    chainId: 8453, // Base
   },
   {
     id: "5",
@@ -115,7 +115,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$1.2T",
     address: "0xd201A97A0C33441f4bea12d9890703f92f3c0A32",
-    chainId: 11155420, // Optimism Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "6",
@@ -131,7 +131,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$4.7T",
     address: "0xD19b51A44a13213B3afCCFf91245f2dAee5D570B", // Sepolia
-    chainId: 11155111, // Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "7",
@@ -147,7 +147,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Healthcare", "Large Cap", "Value"],
     marketCap: "$178B",
     address: "0xA46B069488926fc15430404Ea29c3032A1F3654C",
-    chainId: 84532, // Base Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "8",
@@ -163,7 +163,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Value"],
     marketCap: "$195B",
     address: "0x89FFd589d7Ebd966B18b8643EAb3E3018EE494d7",
-    chainId: 421614, // Arbitrum Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "9",
@@ -179,7 +179,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Financials", "Growth"],
     marketCap: "$18.5B",
     address: "0x1Cf30db4Cbe5A76b6f9E2cfFeD3E25ab36041283",
-    chainId: 5042002, // Arc Testnet
+    chainId: 8453, // Base
   },
   {
     id: "10",
@@ -195,7 +195,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Real Estate", "Growth"],
     marketCap: "$2.8B",
     address: "0x756bfd9186E108fa53D9a972836D009C2CB887cf",
-    chainId: 11155420, // Optimism Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "11",
@@ -211,7 +211,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Small Cap"],
     marketCap: "$0.3B",
     address: "0xC11E33c52dac4B95b4E4B85dC67B365e1c667cBC", // Sepolia
-    chainId: 11155111, // Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "12",
@@ -227,7 +227,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$1.4T",
     address: "0xD7A2f948f846c23Fd34cf380F828638E7d818b5b",
-    chainId: 84532, // Base Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "13",
@@ -243,7 +243,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Consumer", "Large Cap", "Growth"],
     marketCap: "$300B",
     address: "0x9e2B9B0B2303A58DFd4aEB049D77c81C8DeF2e04",
-    chainId: 421614, // Arbitrum Sepolia
+    chainId: 8453, // Base
   },
   {
     id: "14",
@@ -259,7 +259,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Technology", "Large Cap", "Growth"],
     marketCap: "$270B",
     address: "0x8fc8083235E4C0bf978feD1AfE4A317B94c2Ef77",
-    chainId: 5042002, // Arc Testnet
+    chainId: 8453, // Base
   },
   {
     id: "15",
@@ -275,7 +275,7 @@ export const ASSETS: AssetData[] = [
     categories: ["Financials", "Large Cap", "Value"],
     marketCap: "$455B",
     address: "0x51Cb9012AE16812586c7c9D6B6D13103124873D1",
-    chainId: 11155420, // Optimism Sepolia
+    chainId: 8453, // Base
   },
 ]
 

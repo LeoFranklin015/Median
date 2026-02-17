@@ -31,7 +31,6 @@ const defaultSections: FooterSection[] = [
     links: [
       { label: "Perpetuals", href: "#perpetuals" },
       { label: "Orderbook", href: "#orderbook" },
-      { label: "Markets", href: "#markets" },
       { label: "Trading Guide", href: "#guide" },
       { label: "Risk Management", href: "#risk" },
     ],

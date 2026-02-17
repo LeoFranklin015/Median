@@ -13,10 +13,10 @@ export default function AssetNotFound() {
           The asset you&apos;re looking for doesn&apos;t exist or has been removed.
         </p>
         <Link
-          href="/markets"
+          href="/"
           className="px-6 py-3 rounded-lg bg-[#FFD700] text-background font-medium hover:opacity-90 transition-colors"
         >
-          Back to Explore
+          Back to Home
         </Link>
       </main>
     </div>

@@ -3,7 +3,7 @@ config(); // Load env vars before anything else
 
 import { createPublicClient, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia } from 'viem/chains';
+import { base } from 'viem/chains';
 import {
     createAuthRequestMessage,
     createAuthVerifyMessage,
@@ -102,12 +102,12 @@ class WebSocketService {
 
             this.walletClient = createWalletClient({
                 account: wallet,
-                chain: sepolia,
+                chain: base,
                 transport: http(ALCHEMY_RPC_URL),
             });
 
             this.publicClient = createPublicClient({
-                chain: sepolia,
+                chain: base,
                 transport: http(ALCHEMY_RPC_URL),
             });
 
@@ -940,7 +940,7 @@ class WebSocketService {
     }
 
     /**
-     * Create a channel for USDC on Sepolia
+     * Create a channel for USDC on Base
      * Waits for authentication if not already authenticated
      */
     public async createChannel(): Promise<any> {
@@ -955,7 +955,7 @@ class WebSocketService {
             token: USDC_TOKEN,
         });
 
-        console.log('📤 Creating channel for USDC on Sepolia...');
+        console.log('📤 Creating channel for USDC on Base...');
 
         return new Promise((resolve, reject) => {
             const id = Date.now().toString();

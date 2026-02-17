@@ -9,7 +9,6 @@ import { useAccount } from "wagmi"
 
 const navLinks = [
   { name: "Trade", href: "/perpetuals" },
-  { name: "Explore", href: "/markets" },
   { name: "Portfolio", href: "/portfolio" },
   { name: "Tools", href: "#" },
   { name: "Learn", href: "#" },
@@ -35,7 +34,7 @@ export function MarketNavbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            <Link href="/markets" className="flex items-center gap-2 flex-shrink-0">
+            <Link href="/" className="flex items-center gap-2 flex-shrink-0">
               <span className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm font-medium">
                 @
               </span>

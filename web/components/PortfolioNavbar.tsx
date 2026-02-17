@@ -7,7 +7,6 @@ import { Menu, X } from "lucide-react"
 import { RainbowConnectButton } from "./ConnectButton"
 
 const NAV_LINKS = [
-  { name: "Markets", href: "/markets" },
   { name: "Perpetuals", href: "/perpetuals" },
   { name: "Portfolio", href: "/portfolio" },
 ] as const

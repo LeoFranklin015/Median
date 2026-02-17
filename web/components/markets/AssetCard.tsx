@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { motion } from "framer-motion"
 import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import { Sparkline } from "./Sparkline"
@@ -31,7 +30,6 @@ export function AssetCard({
   const isLive = "isLive" in asset && asset.isLive
 
   return (
-    <Link href={`/markets/assets/${asset.ticker}`}>
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -45,7 +43,7 @@ export function AssetCard({
         transition: { duration: 0.2 },
       }}
       className={cn(
-        "group relative rounded-2xl bg-card border border-border p-5 shadow-sm hover:shadow-lg hover:border-border/80 transition-all duration-300 overflow-hidden block cursor-pointer",
+        "group relative rounded-2xl bg-card border border-border p-5 shadow-sm hover:shadow-lg hover:border-border/80 transition-all duration-300 overflow-hidden",
         variant === "list" && "flex flex-row items-center gap-6"
       )}
     >
@@ -134,6 +132,5 @@ export function AssetCard({
         </div>
       </div>
     </motion.div>
-    </Link>
   )
 }

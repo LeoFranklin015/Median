@@ -8,7 +8,6 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { RainbowConnectButton } from "@/components/ConnectButton"
 
 const NAV_LINKS = [
-  { name: "Markets", href: "/markets" },
   { name: "Perpetuals", href: "/perpetuals" },
   { name: "Portfolio", href: "/portfolio" },
 ] as const

@@ -8,7 +8,7 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 import { YellowNetworkProvider } from "@/lib/yellowNetwork";
-import { SUPPORTED_CHAINS, ALCHEMY_API_KEY, sepolia, baseSepolia, arbitrumSepolia, optimismSepolia, arcTestnet } from "@/lib/chains";
+import { SUPPORTED_CHAINS, ALCHEMY_API_KEY, base } from "@/lib/chains";
 import { ENSCheck } from "@/components/ENSCheck";
 
 const config = getDefaultConfig({
@@ -17,11 +17,7 @@ const config = getDefaultConfig({
   chains: SUPPORTED_CHAINS as any,
   ssr: true,
   transports: {
-    [sepolia.id]: http(`https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-    [baseSepolia.id]: http(`https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-    [arbitrumSepolia.id]: http(`https://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-    [optimismSepolia.id]: http(`https://opt-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-    [arcTestnet.id]: http("https://rpc.testnet.arc.network"),
+    [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
   },
 });
 

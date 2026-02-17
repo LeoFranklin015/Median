@@ -1,15 +1,12 @@
 import { createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia, baseSepolia, arbitrumSepolia, optimismSepolia } from 'viem/chains';
+import { base } from 'viem/chains';
 import { NitroliteClient, WalletStateSigner } from '@erc7824/nitrolite';
 import { SUPPORTED_CHAINS, getChainById, type ChainConfig } from './config';
 
 // Map chain IDs to viem chain objects
 const viemChains = {
-    11155111: sepolia,
-    84532: baseSepolia,
-    421614: arbitrumSepolia,
-    11155420: optimismSepolia,
+    8453: base,
 } as const;
 
 interface ChainClients {

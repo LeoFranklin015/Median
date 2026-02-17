@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useMemo, useState } from "react"
-import { useAccount, useBalance, useReadContract, useSwitchChain } from "wagmi"
+import { useAccount, useBalance, useReadContract } from "wagmi"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import { formatUnits } from "viem"
 import Link from "next/link"
@@ -68,8 +68,8 @@ function ChainLogo({
   )
 }
 
-// Sepolia addresses
-const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
+// Base mainnet addresses
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const
 const CUSTODY_CONTRACT_ADDRESS = "0xc4afa9235be46a337850B33B12C222F6a3ba1EEC" as const
 
 const custodyContractABI = [
@@ -99,7 +99,6 @@ export function PortfolioView() {
 
   const { isConnected, address, chain } = useAccount()
   const { openConnectModal } = useConnectModal()
-  const { switchChainAsync } = useSwitchChain()
   const {
     unifiedBalances,
     ledgerEntries,
@@ -115,63 +114,27 @@ export function PortfolioView() {
     transfer,
   } = useYellowNetwork()
 
-  // Backend wallet address for cross-chain withdrawals
+  // Backend wallet address for withdrawals
   const BACKEND_WALLET_ADDRESS = "0x4888Eb840a7Ca93F49C9be3dD95Fc0EdA25bF0c6" as `0x${string}`
-  const SOURCE_CHAIN_ID = 11155111 // Sepolia
+  const SOURCE_CHAIN_ID = 8453 // Base mainnet
   const { assets: quotedAssets } = useStockQuotes()
 
-  const { data: usdcBalanceSepolia } = useBalance({
-    address,
-    token: USDC_BY_CHAIN[11155111],
-    chainId: 11155111,
-    query: { enabled: !!address },
-  })
   const { data: usdcBalanceBase } = useBalance({
     address,
-    token: USDC_BY_CHAIN[84532],
-    chainId: 84532,
-    query: { enabled: !!address },
-  })
-  const { data: usdcBalanceArbitrum } = useBalance({
-    address,
-    token: USDC_BY_CHAIN[421614],
-    chainId: 421614,
-    query: { enabled: !!address },
-  })
-  const { data: usdcBalanceOptimism } = useBalance({
-    address,
-    token: USDC_BY_CHAIN[11155420],
-    chainId: 11155420,
-    query: { enabled: !!address },
-  })
-  const { data: usdcBalanceArc } = useBalance({
-    address,
-    token: USDC_BY_CHAIN[5042002],
-    chainId: 5042002,
+    token: USDC_BY_CHAIN[8453],
+    chainId: 8453,
     query: { enabled: !!address },
   })
 
   const walletBalancesByChain = useMemo(() => {
-    const data = [
-      usdcBalanceSepolia,
-      usdcBalanceBase,
-      usdcBalanceArbitrum,
-      usdcBalanceOptimism,
-      usdcBalanceArc,
-    ]
+    const data = [usdcBalanceBase]
     return CHAIN_OPTIONS.map((chain, i) => ({
       chain,
       balance: data[i]?.value
         ? parseFloat(formatUnits(data[i].value, data[i].decimals))
         : 0,
     }))
-  }, [
-    usdcBalanceSepolia,
-    usdcBalanceBase,
-    usdcBalanceArbitrum,
-    usdcBalanceOptimism,
-    usdcBalanceArc,
-  ])
+  }, [usdcBalanceBase])
 
   const walletBalance = walletBalancesByChain.reduce((s, c) => s + c.balance, 0)
 
@@ -180,7 +143,7 @@ export function PortfolioView() {
     abi: custodyContractABI,
     functionName: "getAccountsBalances",
     args: address ? [[address], [USDC_ADDRESS]] : undefined,
-    chainId: 11155111,
+    chainId: 8453,
     query: { enabled: !!address },
   })
 
@@ -257,7 +220,7 @@ export function PortfolioView() {
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">USDC across 5 chains — ready to deposit</p>
+              <p className="text-sm text-muted-foreground mb-4">USDC on Base — ready to deposit</p>
               {isConnected && (
                 <div className="space-y-2 pt-4 border-t border-border">
                   {walletBalancesByChain.map(({ chain, balance }) => (
@@ -538,10 +501,7 @@ export function PortfolioView() {
                       className="border-t border-border hover:bg-muted/20 transition-colors"
                     >
                       <td className="py-4 px-4">
-                        <Link
-                          href={`/markets/assets/${holding.ticker}`}
-                          className="flex items-center gap-3 hover:text-[#FFD700] transition-colors"
-                        >
+                        <div className="flex items-center gap-3">
                           <img
                             src={`https://img.logokit.com/ticker/${holding.ticker}?token=${LOGOKIT_TOKEN}`}
                             alt={holding.ticker}
@@ -554,7 +514,7 @@ export function PortfolioView() {
                             <span className="font-medium text-foreground">{holding.ticker}</span>
                             <span className="block text-xs text-muted-foreground">{holding.name}</span>
                           </div>
-                        </Link>
+                        </div>
                       </td>
                       <td className="text-right py-4 px-4 font-medium text-foreground">
                         ${holding.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -704,15 +664,6 @@ export function PortfolioView() {
         onConfirm={async (payload: DepositPayload) => {
           if (payload.type === "usdc") {
             try {
-              // Switch to selected chain if different from current chain
-              if (chain?.id !== payload.chainId) {
-                const chainName = CHAIN_OPTIONS.find(c => c.chainId === payload.chainId)?.name || payload.chain
-                toast.info(`Switching to ${chainName}...`)
-                await switchChainAsync({ chainId: payload.chainId })
-                // Wait a moment for chain switch to complete and NitroliteClient to reinitialize
-                await new Promise(resolve => setTimeout(resolve, 1500))
-              }
-
               // Step 1: Deposit to custody (on-chain)
               toast.info("Step 1/2: Depositing to custody...")
               await depositToCustody(payload.amount)
@@ -741,7 +692,7 @@ export function PortfolioView() {
             ticker: h.ticker,
             name: h.name,
             amount: h.amount,
-            chainId: asset?.chainId || 11155111,
+            chainId: asset?.chainId || 8453,
             address: asset?.address || "",
           }
         })}
@@ -759,61 +710,14 @@ export function PortfolioView() {
               return
             }
 
-            // Handle USDC withdrawals (existing logic)
-            const isCrossChain = payload.chainId !== SOURCE_CHAIN_ID
+            // Handle USDC withdrawals
+            toast.info("Step 1/2: Withdrawing from trading balance...")
+            await withdrawFromTradingBalance(payload.amount)
 
-            if (isCrossChain) {
-              // Cross-chain withdrawal flow
-              toast.info("Initiating cross-chain withdrawal via CCTP...")
+            toast.info("Step 2/2: Withdrawing from custody to wallet...")
+            await withdrawFromCustody(payload.amount)
 
-              // Step 1: Create app session with backend for cross-chain withdrawal
-              toast.info("Step 1/4: Creating withdrawal session...")
-              const { appSessionId } = await createAppSession(
-                [address!, BACKEND_WALLET_ADDRESS],
-                [
-                  { participant: address!, asset: "usdc", amount: "0" },
-                  { participant: BACKEND_WALLET_ADDRESS, asset: "usdc", amount: "0" },
-                ],
-                "Median App" // Must match the session key application name
-              )
-
-              // Step 2: Submit app state with withdrawal details
-              toast.info("Step 2/4: Submitting withdrawal request...")
-              await submitAppState(
-                appSessionId,
-                [
-                  { participant: address!, asset: "usdc", amount: "0" },
-                  { participant: BACKEND_WALLET_ADDRESS, asset: "usdc", amount: "0" },
-                ],
-                "operate",
-                {
-                  action: "crossChainWithdrawal",
-                  sourceChainId: SOURCE_CHAIN_ID,
-                  destChainId: payload.chainId,
-                  amount: payload.amount,
-                  userWallet: address,
-                }
-              )
-
-              // Step 3: Transfer funds to backend
-              toast.info("Step 3/4: Transferring funds for bridging...")
-              await transfer(BACKEND_WALLET_ADDRESS, [
-                { asset: "usdc", amount: payload.amount }
-              ])
-
-              toast.success(
-                `Cross-chain withdrawal initiated! ${payload.amount} USDC will be bridged to ${payload.chain}. This may take 10-20 minutes.`
-              )
-            } else {
-              // Same-chain withdrawal flow
-              toast.info("Step 1/2: Withdrawing from trading balance...")
-              await withdrawFromTradingBalance(payload.amount)
-
-              toast.info("Step 2/2: Withdrawing from custody to wallet...")
-              await withdrawFromCustody(payload.amount)
-
-              toast.success(`Successfully withdrew $${payload.amount} USDC to your wallet!`)
-            }
+            toast.success(`Successfully withdrew $${payload.amount} USDC to your wallet!`)
           } catch (error) {
             console.error("Withdraw flow failed:", error)
             toast.error("Withdrawal failed. Please check your balances and try again.")

@@ -37,10 +37,9 @@ export function DepositModal({ isOpen, onClose, onConfirm }: DepositModalProps) 
   const [depositType, setDepositType] = useState<DepositType>("usdc")
   const [selectedStock, setSelectedStock] = useState<AssetData | null>(null)
   const [amount, setAmount] = useState("")
-  const [selectedChain, setSelectedChain] = useState<(typeof CHAIN_OPTIONS)[number]>(CHAIN_OPTIONS[0])
   const [isStockDropdownOpen, setIsStockDropdownOpen] = useState(false)
-  const [isChainDropdownOpen, setIsChainDropdownOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const selectedChain = CHAIN_OPTIONS[0] // Always use Base
 
   const handleConfirm = async () => {
     if (depositType === "stock") {
@@ -84,7 +83,6 @@ export function DepositModal({ isOpen, onClose, onConfirm }: DepositModalProps) 
     setDepositType("usdc")
     setSelectedStock(null)
     setAmount("")
-    setSelectedChain(CHAIN_OPTIONS[0])
   }
 
   const canConfirm =

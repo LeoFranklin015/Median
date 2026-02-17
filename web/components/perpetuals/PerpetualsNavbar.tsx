@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils"
 
 const navLinks = [
   { name: "Trade", href: "/perpetuals" },
-  { name: "Markets", href: "/markets" },
   { name: "Portfolio", href: "/portfolio" },
   { name: "Earn", href: "#" },
 ]

@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { motion } from "framer-motion"
 import { TrendingUp, TrendingDown, Radio } from "lucide-react"
 import type { AssetWithQuote } from "@/hooks/useStockQuotes"
@@ -16,11 +15,10 @@ function ColumnItem({
   const positive = asset.change24h >= 0
 
   return (
-    <Link href={`/markets/assets/${asset.ticker}`}>
     <motion.div
       whileHover={{ x: 4 }}
       transition={{ duration: 0.2 }}
-      className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/60 border border-transparent hover:border-border/60 transition-all duration-200 cursor-pointer group"
+      className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/60 border border-transparent hover:border-border/60 transition-all duration-200 group"
     >
       <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted overflow-hidden">
         <img
@@ -65,7 +63,6 @@ function ColumnItem({
         )}
       </div>
     </motion.div>
-    </Link>
   )
 }
 

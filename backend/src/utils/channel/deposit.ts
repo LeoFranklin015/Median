@@ -5,7 +5,7 @@ import { USDC_TOKEN } from '../../lib/config';
 const USDC_DECIMALS = 6;
 
 /**
- * Deposit USDC to the custody contract on Sepolia
+ * Deposit USDC to the custody contract on Base
  * Uses the WebSocket service's NitroliteClient
  */
 export async function depositToCustody(amount: string): Promise<string> {

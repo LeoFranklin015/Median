@@ -27,8 +27,8 @@ export const ProductTeaserCard = (props: ProductTeaserCardProps) => {
     // Use local TradingView-style candles video by default
     videoSrc = "/candles.mp4",
     posterSrc = "",
-    primaryButtonText = "Markets",
-    primaryButtonHref = "/markets",
+    primaryButtonText = "Perpetuals",
+    primaryButtonHref = "/perpetuals",
     secondaryButtonText = "Portfolio",
     secondaryButtonHref = "/portfolio",
   } = props
