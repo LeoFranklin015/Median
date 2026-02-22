@@ -77,7 +77,7 @@ class WebSocketService {
     private sessionKey: SessionKey | null = null;
     private sessionSigner: ReturnType<typeof createECDSAMessageSigner> | null = null;
     private walletClient: any = null;
-    private publicClient: ReturnType<typeof createPublicClient> | null = null;
+    private publicClient: any = null;
     private authResolvers: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
     private channelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();
     private closeChannelResolvers: Map<string, { resolve: (data: any) => void; reject: (error: Error) => void }> = new Map();

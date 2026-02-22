@@ -45,17 +45,17 @@ export async function bridgeUSDC(params: BridgeParams): Promise<BridgeResult> {
         });
 
         console.log(`🌉 CCTP Bridge: ${amount} USDC`);
-        console.log(`   From: ${sourceChain.name} (${sourceChain.cctpName})`);
-        console.log(`   To: ${destChain.name} (${destChain.cctpName})`);
+        console.log(`   From: ${sourceChain.name}`);
+        console.log(`   To: ${destChain.name}`);
         if (recipientAddress) {
             console.log(`   Recipient: ${recipientAddress}`);
         }
 
         const result = await kit.bridge({
-            from: { adapter, chain: sourceChain.cctpName as any },
+            from: { adapter, chain: sourceChain.name as any },
             to: {
                 adapter,
-                chain: destChain.cctpName as any,
+                chain: destChain.name as any,
                 ...(recipientAddress && { recipientAddress }),
             },
             amount,

@@ -252,22 +252,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
             const challengeResponse = response as AuthChallengeResponse;
             const allowances = [
               { asset: 'usdc', amount: '1000000000000' }, // 1M USDC (6 decimals)
-              // All stock tokens - 1M tokens each (18 decimals) - uppercase symbols
-              { asset: 'AAPL', amount: '1000000000000000000000000' },
-              { asset: 'NVDA', amount: '1000000000000000000000000' },
-              { asset: 'ONDS', amount: '1000000000000000000000000' },
-              { asset: 'AMZN', amount: '1000000000000000000000000' },
-              { asset: 'PFE', amount: '1000000000000000000000000' },
-              { asset: 'META', amount: '1000000000000000000000000' },
-              { asset: 'GOOG', amount: '1000000000000000000000000' },
-              { asset: 'INTC', amount: '1000000000000000000000000' },
-              { asset: 'NFLX', amount: '1000000000000000000000000' },
-              { asset: 'MSFT', amount: '1000000000000000000000000' },
-              { asset: 'SOFI', amount: '1000000000000000000000000' },
-              { asset: 'AMD', amount: '1000000000000000000000000' },
-              { asset: 'TSLA', amount: '1000000000000000000000000' },
-              { asset: 'OPEN', amount: '1000000000000000000000000' },
-              { asset: 'JPM', amount: '1000000000000000000000000' },
             ];
             const authParams = {
               scope: 'median.app',
@@ -826,22 +810,6 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
 
           const allowances = [
             { asset: 'usdc', amount: '1000000000000' }, // 1M USDC (6 decimals)
-            // All stock tokens - 1M tokens each (18 decimals) - uppercase symbols
-            { asset: 'AAPL', amount: '1000000000000000000000000' },
-            { asset: 'NVDA', amount: '1000000000000000000000000' },
-            { asset: 'ONDS', amount: '1000000000000000000000000' },
-            { asset: 'AMZN', amount: '1000000000000000000000000' },
-            { asset: 'PFE', amount: '1000000000000000000000000' },
-            { asset: 'META', amount: '1000000000000000000000000' },
-            { asset: 'GOOG', amount: '1000000000000000000000000' },
-            { asset: 'INTC', amount: '1000000000000000000000000' },
-            { asset: 'NFLX', amount: '1000000000000000000000000' },
-            { asset: 'MSFT', amount: '1000000000000000000000000' },
-            { asset: 'SOFI', amount: '1000000000000000000000000' },
-            { asset: 'AMD', amount: '1000000000000000000000000' },
-            { asset: 'TSLA', amount: '1000000000000000000000000' },
-            { asset: 'OPEN', amount: '1000000000000000000000000' },
-            { asset: 'JPM', amount: '1000000000000000000000000' },
           ];
           const authParams: AuthRequestParams = {
             address: currentAddress,
