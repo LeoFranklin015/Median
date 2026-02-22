@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { baseSepolia } from 'wagmi/chains';
+import { base } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -132,7 +132,7 @@ export default function YellowNetworkPage() {
       case 'connecting':
         return 'Connecting...';
       case 'switching_chain':
-        return 'Switching to Base Sepolia...';
+        return 'Switching to Base mainnet...';
       case 'initializing':
         return 'Initializing client...';
       case 'authenticating':
@@ -199,7 +199,7 @@ export default function YellowNetworkPage() {
             Back to Home
           </Link>
           <h1 className="text-4xl font-bold tracking-tight mb-2">Yellow Network - Instant Payments</h1>
-          <p className="text-muted-foreground">Nitrolite state channels on Base Sepolia testnet</p>
+          <p className="text-muted-foreground">Nitrolite state channels on Base mainnet</p>
           {isConnected && isAuthenticated && (
             <p className="text-xs text-green-600 dark:text-green-400 mt-1">
               WebSocket connected - navigate freely without losing connection
@@ -227,12 +227,12 @@ export default function YellowNetworkPage() {
                         <p className="text-xs text-muted-foreground mb-1">Connected Wallet</p>
                         <p className="text-sm font-mono break-all">{address}</p>
                       </div>
-                      <div className={`p-3 rounded-lg ${chain?.id === baseSepolia.id ? 'bg-green-50 dark:bg-green-950/30' : 'bg-amber-50 dark:bg-amber-950/30'}`}>
+                      <div className={`p-3 rounded-lg ${chain?.id === base.id ? 'bg-green-50 dark:bg-green-950/30' : 'bg-amber-50 dark:bg-amber-950/30'}`}>
                         <p className="text-xs text-muted-foreground mb-1">Network</p>
                         <p className="text-sm font-medium">{chain?.name || 'Unknown'}</p>
-                        {chain?.id !== baseSepolia.id && (
+                        {chain?.id !== base.id && (
                           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                            Will switch to Base Sepolia when connecting
+                            Will switch to Base mainnet when connecting
                           </p>
                         )}
                       </div>

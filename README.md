@@ -31,7 +31,7 @@ All trades settle in milliseconds. Zero gas during trading. Non-custodial.
 
 Users deposit USDC from any chain into Yellow state channels. ClearSync aggregates all deposits into a single unified balance — one number, regardless of source chain. Every trade runs inside an App Session where the user submits an order, our Resolver fetches the price and submits a new state, and balances update instantly. All off-chain, no gas, settles in milliseconds. Withdrawals route through the same unified balance to any destination chain.
 
-Production Yellow node: wss://yellow.philotheephilix.in/ws
+Production Yellow node: wss://clearnet.yellow.com/ws
 
 **What we use:**
 - State Channels — Off-chain trading

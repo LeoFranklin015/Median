@@ -6,8 +6,8 @@ export const SUPPORTED_CHAINS = {
     id: 8453,
     name: 'Base',
     usdcToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
-    custody: '0xc4afa9235be46a337850B33B12C222F6a3ba1EEC' as `0x${string}`,
-    adjudicator: '0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3' as `0x${string}`,
+    custody: '0x019B65A265EB3363822f2752141b3dF16131b262' as `0x${string}`,
+    adjudicator: '0x7c7ccbc98469190849BCC6c926307794fDfB11F2' as `0x${string}`,
   },
 } as const;
 
@@ -23,7 +23,7 @@ export function getChainByName(name: keyof typeof SUPPORTED_CHAINS): ChainConfig
 
 // Default chain (Base mainnet)
 export const YELLOW_CONFIG = {
-  ws: 'wss://yellow.philotheephilix.in/ws',
+  ws: 'wss://clearnet.yellow.com/ws',
   faucet: 'https://clearnet-sandbox.yellow.com/faucet/requestTokens',
   custody: SUPPORTED_CHAINS.base.custody,
   adjudicator: SUPPORTED_CHAINS.base.adjudicator,

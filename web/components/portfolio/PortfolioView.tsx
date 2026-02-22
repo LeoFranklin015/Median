@@ -70,7 +70,7 @@ function ChainLogo({
 
 // Base mainnet addresses
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const
-const CUSTODY_CONTRACT_ADDRESS = "0xc4afa9235be46a337850B33B12C222F6a3ba1EEC" as const
+const CUSTODY_CONTRACT_ADDRESS = "0x019B65A265EB3363822f2752141b3dF16131b262" as const
 
 const custodyContractABI = [
   {

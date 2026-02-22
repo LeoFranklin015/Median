@@ -16,8 +16,8 @@ export const SUPPORTED_CHAINS = {
         name: 'Base',
         rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
         usdcToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
-        custody: '0xc4afa9235be46a337850B33B12C222F6a3ba1EEC' as `0x${string}`,
-        adjudicator: '0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3' as `0x${string}`,
+        custody: '0x019B65A265EB3363822f2752141b3dF16131b262' as `0x${string}`,
+        adjudicator: '0x7c7ccbc98469190849BCC6c926307794fDfB11F2' as `0x${string}`,
     },
 } as const;
 
@@ -53,7 +53,7 @@ export const AUTH_ALLOWANCES = [
 
 export default function getContractAddresses() {
     return {
-        custody: '0xc4afa9235be46a337850B33B12C222F6a3ba1EEC',
-        adjudicator: '0x8F6C8F2904Aa3A84080228455e40b47c1EC0a8d3',
+        custody: '0x019B65A265EB3363822f2752141b3dF16131b262',
+        adjudicator: '0x7c7ccbc98469190849BCC6c926307794fDfB11F2',
     }
 }
