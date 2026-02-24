@@ -1,6 +1,5 @@
-// Yellow Network Base mainnet configuration
+// Yellow Network configuration — Base Mainnet only
 
-// Base mainnet configuration
 export const SUPPORTED_CHAINS = {
   base: {
     id: 8453,
@@ -21,7 +20,7 @@ export function getChainByName(name: keyof typeof SUPPORTED_CHAINS): ChainConfig
   return SUPPORTED_CHAINS[name];
 }
 
-// Default chain (Base mainnet)
+// Default chain (Base Mainnet)
 export const YELLOW_CONFIG = {
   ws: 'wss://clearnet.yellow.com/ws',
   faucet: 'https://clearnet-sandbox.yellow.com/faucet/requestTokens',

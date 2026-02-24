@@ -116,7 +116,7 @@ export function PortfolioView() {
 
   // Backend wallet address for withdrawals
   const BACKEND_WALLET_ADDRESS = "0x4888Eb840a7Ca93F49C9be3dD95Fc0EdA25bF0c6" as `0x${string}`
-  const SOURCE_CHAIN_ID = 8453 // Base mainnet
+  const SOURCE_CHAIN_ID = 8453 // Base Mainnet
   const { assets: quotedAssets } = useStockQuotes()
 
   const { data: usdcBalanceBase } = useBalance({

@@ -133,6 +133,7 @@ export default function YellowNetworkPage() {
         return 'Connecting...';
       case 'switching_chain':
         return 'Switching to Base mainnet...';
+        return 'Switching to Base...';
       case 'initializing':
         return 'Initializing client...';
       case 'authenticating':
@@ -227,6 +228,7 @@ export default function YellowNetworkPage() {
                         <p className="text-xs text-muted-foreground mb-1">Connected Wallet</p>
                         <p className="text-sm font-mono break-all">{address}</p>
                       </div>
+
                       <div className={`p-3 rounded-lg ${chain?.id === base.id ? 'bg-green-50 dark:bg-green-950/30' : 'bg-amber-50 dark:bg-amber-950/30'}`}>
                         <p className="text-xs text-muted-foreground mb-1">Network</p>
                         <p className="text-sm font-medium">{chain?.name || 'Unknown'}</p>

@@ -1,7 +1,7 @@
 import { JustaName, type ChainId } from "@justaname.id/sdk";
 
 const MEDIAN_ENS_DOMAIN = "median.eth";
-const CHAIN_ID = 11155111 as ChainId; // Sepolia
+const CHAIN_ID = 8453 as ChainId; // Base Mainnet
 
 // Initialize JustaName instance
 export const initJustaName = () => {
@@ -9,7 +9,7 @@ export const initJustaName = () => {
     networks: [
       {
         chainId: CHAIN_ID,
-        providerUrl: "https://sepolia.drpc.org",
+        providerUrl: "https://mainnet.base.org",
       },
     ],
     ensDomains: [
