@@ -181,44 +181,8 @@ export function DepositModal({ isOpen, onClose, onConfirm }: DepositModalProps) 
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                       Chain
                     </label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsChainDropdownOpen(!isChainDropdownOpen)}
-                        className="w-full flex items-center justify-between gap-2 bg-muted/50 border border-border rounded-xl px-4 py-3 text-left focus:outline-none focus:ring-2 focus:ring-[#FFD700]/50"
-                        disabled={isLoading}
-                      >
-                        <span className="font-medium text-foreground">{selectedChain.name}</span>
-                        <ChevronDown
-                          className={cn("w-4 h-4 text-muted-foreground transition-transform", isChainDropdownOpen && "rotate-180")}
-                        />
-                      </button>
-                      {isChainDropdownOpen && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setIsChainDropdownOpen(false)}
-                          />
-                          <div className="absolute top-full left-0 right-0 mt-1 z-20 max-h-64 overflow-y-auto bg-card border border-border rounded-xl shadow-lg">
-                            {CHAIN_OPTIONS.map((chain) => (
-                              <button
-                                key={chain.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedChain(chain)
-                                  setIsChainDropdownOpen(false)
-                                }}
-                                className={cn(
-                                  "w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors flex-shrink-0",
-                                  selectedChain.id === chain.id && "bg-muted/30"
-                                )}
-                              >
-                                <span className="font-medium text-foreground">{chain.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                    <div className="w-full flex items-center gap-2 bg-muted/50 border border-border rounded-xl px-4 py-3">
+                      <span className="font-medium text-foreground">{selectedChain.name}</span>
                     </div>
                   </div>
                 </div>
@@ -301,44 +265,8 @@ export function DepositModal({ isOpen, onClose, onConfirm }: DepositModalProps) 
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                       Chain
                     </label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsChainDropdownOpen(!isChainDropdownOpen)}
-                        className="w-full flex items-center justify-between gap-2 bg-muted/50 border border-border rounded-xl px-4 py-3 text-left focus:outline-none focus:ring-2 focus:ring-[#FFD700]/50"
-                        disabled={isLoading}
-                      >
-                        <span className="font-medium text-foreground">{selectedChain.name}</span>
-                        <ChevronDown
-                          className={cn("w-4 h-4 text-muted-foreground transition-transform", isChainDropdownOpen && "rotate-180")}
-                        />
-                      </button>
-                      {isChainDropdownOpen && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setIsChainDropdownOpen(false)}
-                          />
-                          <div className="absolute top-full left-0 right-0 mt-1 z-20 max-h-64 overflow-y-auto bg-card border border-border rounded-xl shadow-lg">
-                            {CHAIN_OPTIONS.map((chain) => (
-                              <button
-                                key={chain.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedChain(chain)
-                                  setIsChainDropdownOpen(false)
-                                }}
-                                className={cn(
-                                  "w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors flex-shrink-0",
-                                  selectedChain.id === chain.id && "bg-muted/30"
-                                )}
-                              >
-                                <span className="font-medium text-foreground">{chain.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                    <div className="w-full flex items-center gap-2 bg-muted/50 border border-border rounded-xl px-4 py-3">
+                      <span className="font-medium text-foreground">{selectedChain.name}</span>
                     </div>
                   </div>
                 </div>

@@ -1,7 +1,8 @@
 import { JustaName, type ChainId } from "@justaname.id/sdk";
+import { sepolia } from "viem/chains";
 
 const MEDIAN_ENS_DOMAIN = "median.eth";
-const CHAIN_ID = 8453 as ChainId; // Base Mainnet
+const CHAIN_ID = sepolia.id as ChainId; // sepolia
 
 // Initialize JustaName instance
 export const initJustaName = () => {
