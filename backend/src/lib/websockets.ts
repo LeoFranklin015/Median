@@ -284,6 +284,16 @@ class WebSocketService {
             case RPCMethod.Error:
             case 'error':
                 console.error('❌ RPC Error:', message.params);
+                // Retry authentication on invalid challenge or signature
+                if (
+                    message.params &&
+                    typeof (message.params as any).error === 'string' &&
+                    (message.params as any).error.includes('invalid challenge or signature')
+                ) {
+                    console.log('🔄 Invalid challenge or signature — retrying authentication in 5 seconds...');
+                    setTimeout(() => this.startAuthentication(), 5000);
+                    break;
+                }
                 // Reject any pending resolvers
                 this.channelResolvers.forEach(({ reject }) => reject(new Error(JSON.stringify(message.params))));
                 this.channelResolvers.clear();
