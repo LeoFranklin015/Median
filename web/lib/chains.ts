@@ -3,7 +3,7 @@ import { base as baseMainnet } from "wagmi/chains"
 // Alchemy API key for RPC
 export const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || ""
 
-// Base mainnet with Alchemy RPC URL
+// Base Mainnet with Alchemy RPC
 export const base = {
   ...baseMainnet,
   rpcUrls: {
@@ -14,7 +14,7 @@ export const base = {
   },
 } as const
 
-// All supported chains for the app (only Base mainnet)
+// All supported chains for the app (Base Mainnet only)
 export const SUPPORTED_CHAINS = [base] as const
 
 // Chain metadata for UI (dropdowns, labels)
@@ -37,7 +37,7 @@ export function getChainOptionByChainId(chainId: number) {
   return CHAIN_OPTIONS.find((c) => c.chainId === chainId)
 }
 
-// USDC token address on Base mainnet
+// USDC token address on Base Mainnet
 export const USDC_BY_CHAIN: Record<number, `0x${string}`> = {
   [base.id]: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`,
 }
