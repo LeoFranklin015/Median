@@ -1,0 +1,1 @@
+{"version":3,"file":"close.js","sourceRoot":"","sources":["../../../src/utils/channel/close.ts"],"names":[],"mappings":";;AAMA,kDAIC;AAVD,qDAAwD;AAMjD,KAAK,UAAU,mBAAmB,CAAC,SAAiB;IACvD,MAAM,MAAM,GAAG,MAAM,6BAAgB,CAAC,mBAAmB,CAAC,SAAS,CAAC,CAAC;IACrE,OAAO,CAAC,GAAG,CAAC,aAAa,SAAS,yBAAyB,MAAM,CAAC,MAAM,GAAG,CAAC,CAAC;IAC7E,OAAO,MAAM,CAAC;AAClB,CAAC"}

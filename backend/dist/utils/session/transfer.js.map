@@ -1,0 +1,1 @@
+{"version":3,"file":"transfer.js","sourceRoot":"","sources":["../../../src/utils/session/transfer.ts"],"names":[],"mappings":";;AAWA,4BAOC;AAlBD,qDAAwD;AAWjD,KAAK,UAAU,QAAQ,CAAC,MAAsB;IACjD,MAAM,MAAM,GAAG,MAAM,6BAAgB,CAAC,QAAQ,CAC1C,MAAM,CAAC,WAAW,EAClB,MAAM,CAAC,WAAW,CACrB,CAAC;IACF,OAAO,CAAC,GAAG,CAAC,4BAA4B,MAAM,CAAC,WAAW,EAAE,CAAC,CAAC;IAC9D,OAAO,MAAM,CAAC;AAClB,CAAC"}

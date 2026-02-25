@@ -1,0 +1,1 @@
+{"version":3,"file":"create.js","sourceRoot":"","sources":["../../../src/utils/channel/create.ts"],"names":[],"mappings":";;AAEA,oDAIC;AAND,qDAAwD;AAEjD,KAAK,UAAU,oBAAoB;IACtC,MAAM,MAAM,GAAG,MAAM,6BAAgB,CAAC,oBAAoB,EAAE,CAAC;IAC7D,OAAO,CAAC,GAAG,CAAC,aAAa,MAAM,CAAC,SAAS,0BAA0B,MAAM,CAAC,MAAM,GAAG,CAAC,CAAC;IACrF,OAAO,MAAM,CAAC;AAClB,CAAC"}
