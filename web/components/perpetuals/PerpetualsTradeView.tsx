@@ -253,9 +253,15 @@ export function PerpetualsTradeView() {
 
       setPositions(prev => prev.map(pos => {
         if (pos.positionId === data.positionId) {
+          // Backend echoes session_data with `action` but no `status` field.
+          // Map action → status when no explicit status is provided.
+          const newStatus: Position["status"] = data.status ??
+            (data.action === "open" ? "filled" :
+             data.action === "close" ? "closed" :
+             pos.status)
           return {
             ...pos,
-            status: data.status,
+            status: newStatus,
             entryPrice: data.entryPrice || pos.entryPrice,
             positionSize: data.positionSize || pos.positionSize,
             liquidationPrice: data.liquidationPrice || pos.liquidationPrice,
@@ -267,7 +273,7 @@ export function PerpetualsTradeView() {
       }))
 
       // Remove closed positions after delay and show toast
-      if (data.status === "closed") {
+      if (data.status === "closed" || data.action === "close") {
         setTimeout(() => {
           setPositions(prev => prev.filter(p => p.positionId !== data.positionId))
           toast.success(`Position closed! PnL: $${data.pnl}`)
@@ -297,11 +303,10 @@ export function PerpetualsTradeView() {
       return
     }
 
+    // Hoist positionId so the catch block can clean it up on failure
+    const positionId = `pos_${uuidv4().slice(0, 8)}`
     setIsProcessing(true)
     try {
-      // Generate unique position ID
-      const positionId = `pos_${uuidv4().slice(0, 8)}`
-
       // Convert to atomic units (USDC = 6 decimals)
       const amountAtomic = BigInt(Math.floor(amount * 1e6)).toString()
 
@@ -332,15 +337,8 @@ export function PerpetualsTradeView() {
         timestamp: Date.now()
       }
 
-      await submitAppState(appSessionId, initialAllocations, "operate", sessionData)
-
-      // Transfer collateral to counterparty
-      toast.info("Transferring collateral...")
-      await transfer(COUNTERPARTY_ADDRESS, [
-        { asset: "usdc", amount: amount.toString() }
-      ])
-
-      // Add pending position to local state
+      // Add pending position to state BEFORE submitAppState so the asu event
+      // (which fires before submitAppState resolves) can find and update it.
       setPositions(prev => [...prev, {
         positionId,
         appSessionId,
@@ -356,6 +354,14 @@ export function PerpetualsTradeView() {
         timestamp: Date.now()
       }])
 
+      await submitAppState(appSessionId, initialAllocations, "operate", sessionData)
+
+      // Transfer collateral to counterparty
+      toast.info("Transferring collateral...")
+      await transfer(COUNTERPARTY_ADDRESS, [
+        { asset: "usdc", amount: amount.toString() }
+      ])
+
       toast.success(`${side === "long" ? "Long" : "Short"} position opened!`)
       setPayAmount("")
       setLongAmount("")
@@ -363,6 +369,8 @@ export function PerpetualsTradeView() {
     } catch (error) {
       console.error("Failed to open position:", error)
       toast.error(`Failed: ${error instanceof Error ? error.message : String(error)}`)
+      // Remove the optimistically-added position on failure
+      setPositions(prev => prev.filter(p => p.positionId !== positionId))
     } finally {
       setIsProcessing(false)
     }

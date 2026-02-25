@@ -1771,13 +1771,22 @@ export function YellowNetworkProvider({ children }: YellowNetworkProviderProps) 
       const chainConfig = chain ? getChainById(chain.id) : null;
       const usdcToken = chainConfig?.usdcToken || YELLOW_CONFIG.testToken;
 
-      // Step 0: Check custody balance before proceeding
+      // Step 0: Check custody balance before proceeding (non-fatal — contract may not support this read)
       if (nitroliteClientRef.current) {
-        const custodyBalance = await nitroliteClientRef.current.getAccountBalance(usdcToken);
-        addLog('Current custody balance', { balance: custodyBalance.toString(), required: amountInUnits.toString(), chainName: chainConfig?.name });
+        try {
+          const custodyBalance = await nitroliteClientRef.current.getAccountBalance(usdcToken);
+          addLog('Current custody balance', { balance: custodyBalance.toString(), required: amountInUnits.toString(), chainName: chainConfig?.name });
 
-        if (custodyBalance < amountInUnits) {
-          throw new Error(`Insufficient custody balance. Have: ${custodyBalance.toString()}, Need: ${amountInUnits.toString()}. Please deposit first.`);
+          if (custodyBalance < amountInUnits) {
+            throw new Error(`Insufficient custody balance. Have: ${custodyBalance.toString()}, Need: ${amountInUnits.toString()}. Please deposit first.`);
+          }
+        } catch (balanceCheckError: any) {
+          // If the error is an insufficient balance error, re-throw it
+          if (balanceCheckError.message?.startsWith('Insufficient custody balance')) {
+            throw balanceCheckError;
+          }
+          // Otherwise the contract read failed — log and proceed since deposit already succeeded
+          addLog('Custody balance check failed (proceeding anyway)', { error: String(balanceCheckError) });
         }
       }
 
